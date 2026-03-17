@@ -1,0 +1,1440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>🐳 Captain Container</title>
+
+<!-- JSZip for reading ZIP files in browser -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- Prism for syntax highlighting -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-docker.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
+
+<style>
+/* ── FONTS ── */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+
+/* ── VARIABLES ── */
+:root {
+  --bg:       #080c10;
+  --surface:  #0d1117;
+  --surface2: #161b22;
+  --surface3: #1c2430;
+  --border:   #21262d;
+  --border2:  #30363d;
+  --cyan:     #00e5ff;
+  --green:    #3fb950;
+  --yellow:   #e3b341;
+  --red:      #f85149;
+  --purple:   #bc8cff;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --dim:      #484f58;
+  --glow-c:   rgba(0,229,255,0.15);
+  --glow-g:   rgba(63,185,80,0.12);
+  --r:        10px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Space Grotesk', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* grid noise texture */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,255,0.02) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,255,0.02) 1px, transparent 1px);
+  background-size: 32px 32px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── HEADER ── */
+header {
+  position: relative; z-index: 10;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(8,12,16,0.9);
+  backdrop-filter: blur(12px);
+  display: flex; align-items: center; justify-content: space-between;
+}
+
+.logo {
+  display: flex; align-items: center; gap: 12px;
+}
+.logo-icon {
+  font-size: 28px;
+  filter: drop-shadow(0 0 8px var(--cyan));
+}
+.logo-text {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--cyan);
+  letter-spacing: -0.5px;
+}
+.logo-sub {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.badge {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 11px;
+  color: var(--green);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: 0.5px;
+}
+
+/* ── MAIN LAYOUT ── */
+main {
+  position: relative; z-index: 1;
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 40px 24px;
+}
+
+/* ── API KEY BANNER ── */
+.api-banner {
+  background: linear-gradient(135deg, rgba(188,140,255,0.08), rgba(0,229,255,0.06));
+  border: 1px solid rgba(188,140,255,0.25);
+  border-radius: var(--r);
+  padding: 14px 20px;
+  display: flex; align-items: center; gap: 12px;
+  margin-bottom: 28px;
+  font-size: 13px;
+  flex-wrap: wrap;
+}
+.api-banner .spark { font-size: 18px; }
+.api-banner strong { color: var(--purple); }
+.api-banner-right { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
+.api-input {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 7px 12px;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  width: 280px;
+  outline: none;
+  transition: border-color .2s;
+}
+.api-input:focus { border-color: var(--purple); }
+.api-input::placeholder { color: var(--dim); }
+.btn-save-key {
+  background: rgba(188,140,255,0.15);
+  border: 1px solid rgba(188,140,255,0.4);
+  color: var(--purple);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-size: 12px;
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
+  font-weight: 500;
+  transition: all .2s;
+}
+.btn-save-key:hover { background: rgba(188,140,255,0.25); }
+.key-status { font-size: 11px; color: var(--muted); }
+.key-status.ok { color: var(--green); }
+
+/* ── DROP ZONE ── */
+.drop-section {
+  text-align: center;
+  margin-bottom: 32px;
+}
+
+.drop-zone {
+  border: 2px dashed var(--border2);
+  border-radius: 16px;
+  padding: 64px 32px;
+  background: var(--surface);
+  cursor: pointer;
+  transition: all .3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.drop-zone::before {
+  content: '';
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 50% 50%, var(--glow-c), transparent 70%);
+  opacity: 0;
+  transition: opacity .3s;
+}
+.drop-zone:hover::before,
+.drop-zone.dragging::before { opacity: 1; }
+.drop-zone:hover,
+.drop-zone.dragging {
+  border-color: var(--cyan);
+  background: rgba(0,229,255,0.04);
+  transform: scale(1.005);
+}
+.drop-zone.dragging {
+  border-style: solid;
+  box-shadow: 0 0 40px rgba(0,229,255,0.12), inset 0 0 40px rgba(0,229,255,0.04);
+}
+
+.drop-icon {
+  font-size: 56px;
+  margin-bottom: 16px;
+  filter: drop-shadow(0 0 12px rgba(0,229,255,0.3));
+  display: block;
+  animation: float 3s ease-in-out infinite;
+}
+@keyframes float {
+  0%,100% { transform: translateY(0); }
+  50%      { transform: translateY(-8px); }
+}
+
+.drop-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+.drop-sub {
+  font-size: 14px;
+  color: var(--muted);
+  margin-bottom: 20px;
+}
+.drop-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 6px 14px;
+  font-size: 12px;
+  color: var(--dim);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.btn-browse {
+  display: inline-block;
+  margin-top: 20px;
+  background: linear-gradient(135deg, rgba(0,229,255,0.15), rgba(0,229,255,0.08));
+  border: 1px solid rgba(0,229,255,0.3);
+  color: var(--cyan);
+  border-radius: 8px;
+  padding: 10px 24px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: all .2s;
+  position: relative; z-index: 2;
+}
+.btn-browse:hover {
+  background: linear-gradient(135deg, rgba(0,229,255,0.25), rgba(0,229,255,0.12));
+  box-shadow: 0 0 20px rgba(0,229,255,0.15);
+}
+
+#fileInput { display: none; }
+
+/* ── SCANNING STATE ── */
+.scanning-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 24px;
+  margin-bottom: 28px;
+  display: none;
+}
+.scanning-panel.active { display: block; }
+
+.scan-header {
+  display: flex; align-items: center; gap: 10px;
+  margin-bottom: 20px;
+}
+.scan-title { font-size: 15px; font-weight: 600; }
+.scan-badge {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  background: rgba(0,229,255,0.1);
+  border: 1px solid rgba(0,229,255,0.2);
+  color: var(--cyan);
+  border-radius: 4px;
+  padding: 2px 8px;
+}
+
+.scan-progress-bar {
+  background: var(--surface2);
+  border-radius: 4px;
+  height: 4px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.scan-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--cyan), var(--green));
+  border-radius: 4px;
+  width: 0%;
+  transition: width .4s ease;
+  box-shadow: 0 0 8px var(--cyan);
+}
+
+.scan-log {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 2;
+  max-height: 180px;
+  overflow-y: auto;
+}
+.scan-log .line { display: flex; gap: 10px; align-items: baseline; }
+.scan-log .line.ok   .icon { color: var(--green); }
+.scan-log .line.info .icon { color: var(--cyan); }
+.scan-log .line.warn .icon { color: var(--yellow); }
+.scan-log .line.ai   .icon { color: var(--purple); }
+.scan-log .text { color: var(--text); }
+.scan-log .dim  { color: var(--dim); }
+
+/* ── DETECTED STACK ── */
+.stack-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 20px 24px;
+  margin-bottom: 28px;
+  display: none;
+  gap: 20px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.stack-card.active { display: flex; }
+
+.stack-icon { font-size: 40px; filter: drop-shadow(0 0 10px rgba(0,229,255,0.3)); }
+.stack-info { flex: 1; }
+.stack-name {
+  font-size: 18px; font-weight: 600;
+  color: var(--cyan); margin-bottom: 4px;
+}
+.stack-meta { font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+.stack-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pill {
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  border-radius: 4px;
+  padding: 3px 10px;
+  border: 1px solid;
+}
+.pill.green { background: rgba(63,185,80,0.1);   border-color: rgba(63,185,80,0.3);   color: var(--green); }
+.pill.cyan  { background: rgba(0,229,255,0.08);  border-color: rgba(0,229,255,0.25);  color: var(--cyan); }
+.pill.yellow{ background: rgba(227,179,65,0.1);  border-color: rgba(227,179,65,0.3);  color: var(--yellow); }
+.pill.purple{ background: rgba(188,140,255,0.1); border-color: rgba(188,140,255,0.3); color: var(--purple); }
+
+.btn-regen {
+  background: rgba(63,185,80,0.1);
+  border: 1px solid rgba(63,185,80,0.3);
+  color: var(--green);
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: all .2s;
+}
+.btn-regen:hover { background: rgba(63,185,80,0.18); }
+
+/* ── OUTPUT TABS ── */
+.output-section { display: none; }
+.output-section.active { display: block; }
+
+.tab-bar {
+  display: flex; gap: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0;
+}
+.tab {
+  padding: 10px 20px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--muted);
+  cursor: pointer;
+  border-radius: 8px 8px 0 0;
+  border: 1px solid transparent;
+  border-bottom: none;
+  transition: all .2s;
+  display: flex; align-items: center; gap: 8px;
+  position: relative; top: 1px;
+}
+.tab:hover { color: var(--text); background: var(--surface2); }
+.tab.active {
+  color: var(--cyan);
+  background: var(--surface);
+  border-color: var(--border);
+  border-bottom-color: var(--surface);
+}
+
+.tab-content {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-top: none;
+  border-radius: 0 0 var(--r) var(--r);
+}
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+
+.code-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface2);
+}
+.code-filename {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--muted);
+  display: flex; align-items: center; gap: 8px;
+}
+.code-filename .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--cyan); box-shadow: 0 0 6px var(--cyan);
+}
+.code-actions { display: flex; gap: 8px; }
+
+.btn-copy, .btn-dl {
+  display: flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: all .2s;
+  border: 1px solid;
+}
+.btn-copy {
+  background: rgba(0,229,255,0.08);
+  border-color: rgba(0,229,255,0.2);
+  color: var(--cyan);
+}
+.btn-copy:hover { background: rgba(0,229,255,0.15); }
+.btn-copy.copied { color: var(--green); border-color: rgba(63,185,80,0.3); background: rgba(63,185,80,0.1); }
+.btn-dl {
+  background: rgba(63,185,80,0.08);
+  border-color: rgba(63,185,80,0.2);
+  color: var(--green);
+}
+.btn-dl:hover { background: rgba(63,185,80,0.15); }
+
+.code-body {
+  padding: 0;
+  overflow-x: auto;
+  max-height: 520px;
+  overflow-y: auto;
+}
+.code-body pre {
+  margin: 0 !important;
+  padding: 20px !important;
+  background: transparent !important;
+  font-family: 'JetBrains Mono', monospace !important;
+  font-size: 13px !important;
+  line-height: 1.7 !important;
+}
+.code-body code { font-size: 13px !important; }
+
+/* scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--dim); }
+
+/* ── BOTTOM ACTIONS ── */
+.bottom-actions {
+  display: none;
+  gap: 12px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.bottom-actions.active { display: flex; }
+
+.btn-dl-all {
+  background: linear-gradient(135deg, rgba(63,185,80,0.2), rgba(0,229,255,0.12));
+  border: 1px solid rgba(63,185,80,0.4);
+  color: var(--green);
+  border-radius: 8px;
+  padding: 11px 24px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: all .2s;
+  display: flex; align-items: center; gap: 8px;
+}
+.btn-dl-all:hover {
+  background: linear-gradient(135deg, rgba(63,185,80,0.3), rgba(0,229,255,0.18));
+  box-shadow: 0 0 20px rgba(63,185,80,0.15);
+}
+
+.btn-reset {
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  color: var(--muted);
+  border-radius: 8px;
+  padding: 11px 20px;
+  font-size: 14px;
+  cursor: pointer;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: all .2s;
+}
+.btn-reset:hover { color: var(--text); border-color: var(--dim); }
+
+/* ── SUPPORTED STACKS ── */
+.stacks-row {
+  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
+  margin-top: 24px;
+}
+.stack-tag {
+  display: flex; align-items: center; gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--dim);
+  font-family: 'JetBrains Mono', monospace;
+  transition: all .2s;
+}
+.stack-tag:hover { border-color: var(--border2); color: var(--muted); }
+
+/* ── TOAST ── */
+.toast {
+  position: fixed; bottom: 24px; right: 24px;
+  background: var(--surface2);
+  border: 1px solid var(--border2);
+  border-radius: 10px;
+  padding: 12px 18px;
+  font-size: 13px;
+  display: flex; align-items: center; gap: 8px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  transform: translateY(80px);
+  opacity: 0;
+  transition: all .3s ease;
+  z-index: 100;
+}
+.toast.show { transform: translateY(0); opacity: 1; }
+.toast.success { border-color: rgba(63,185,80,0.4); }
+.toast.error   { border-color: rgba(248,81,73,0.4); }
+
+/* ── SPINNER ── */
+.spinner {
+  width: 14px; height: 14px;
+  border: 2px solid rgba(0,229,255,0.2);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+  display: inline-block;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── ANIMATIONS ── */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-in { animation: fadeIn .4s ease forwards; }
+
+.pulse { animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse {
+  0%,100% { opacity: 1; }
+  50%      { opacity: 0.6; }
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<header>
+  <div class="logo">
+    <span class="logo-icon">🐳</span>
+    <div>
+      <div class="logo-text">Captain Container</div>
+      <div class="logo-sub">Containerization Engine</div>
+    </div>
+  </div>
+  <span class="badge">v1.0 · Local App</span>
+</header>
+
+<!-- MAIN -->
+<main>
+
+  <!-- API KEY BANNER -->
+  <div class="api-banner">
+    <span class="spark">✨</span>
+    <div>
+      <strong>AI-Powered Mode</strong> — Add your Anthropic API key for smarter, context-aware generation
+      <span style="color:var(--dim);font-size:11px;display:block;margin-top:2px;">Without key: uses smart local templates &nbsp;|&nbsp; With key: Claude AI analyses your actual code</span>
+    </div>
+    <div class="api-banner-right">
+      <input class="api-input" id="apiKeyInput" type="password" placeholder="sk-ant-api03-..." />
+      <button class="btn-save-key" onclick="saveApiKey()">Save Key</button>
+      <span class="key-status" id="keyStatus">No key saved</span>
+    </div>
+  </div>
+
+  <!-- DROP ZONE -->
+  <div class="drop-section">
+    <div class="drop-zone" id="dropZone">
+      <span class="drop-icon">📦</span>
+      <div class="drop-title">Drop your project ZIP here</div>
+      <div class="drop-sub">Captain Container will scan it and generate production-ready Docker files</div>
+      <div class="drop-hint">
+        <span>📁</span> Only .zip files · Any project size
+      </div>
+      <br/>
+      <button class="btn-browse" onclick="document.getElementById('fileInput').click()">
+        Browse Files
+      </button>
+      <input type="file" id="fileInput" accept=".zip" />
+    </div>
+
+    <!-- Supported stacks -->
+    <div class="stacks-row">
+      <span class="stack-tag">🟢 Node.js</span>
+      <span class="stack-tag">🐍 Python</span>
+      <span class="stack-tag">☕ Java</span>
+      <span class="stack-tag">🐹 Go</span>
+      <span class="stack-tag">🐘 PHP</span>
+      <span class="stack-tag">💎 Ruby</span>
+      <span class="stack-tag">🦀 Rust</span>
+      <span class="stack-tag">🔷 .NET</span>
+      <span class="stack-tag">+ more</span>
+    </div>
+  </div>
+
+  <!-- SCANNING PANEL -->
+  <div class="scanning-panel" id="scanningPanel">
+    <div class="scan-header">
+      <span class="spinner" id="scanSpinner"></span>
+      <span class="scan-title" id="scanTitle">Scanning project…</span>
+      <span class="scan-badge" id="scanBadge">0 files</span>
+    </div>
+    <div class="scan-progress-bar">
+      <div class="scan-progress-fill" id="progressFill"></div>
+    </div>
+    <div class="scan-log" id="scanLog"></div>
+  </div>
+
+  <!-- DETECTED STACK CARD -->
+  <div class="stack-card" id="stackCard">
+    <div class="stack-icon" id="stackIcon">📦</div>
+    <div class="stack-info">
+      <div class="stack-name" id="stackName">—</div>
+      <div class="stack-meta" id="stackMeta">—</div>
+      <br/>
+      <div class="stack-pills" id="stackPills"></div>
+    </div>
+    <button class="btn-regen" onclick="regenerate()">⟳ Re-generate</button>
+  </div>
+
+  <!-- OUTPUT -->
+  <div class="output-section" id="outputSection">
+    <div class="tab-bar">
+      <div class="tab active" onclick="switchTab('dockerfile')">🐳 Dockerfile</div>
+      <div class="tab" onclick="switchTab('compose')">⚙️ docker-compose.yml</div>
+      <div class="tab" onclick="switchTab('ignore')">🚫 .dockerignore</div>
+    </div>
+
+    <div class="tab-content">
+      <!-- Dockerfile -->
+      <div class="tab-panel active" id="tab-dockerfile">
+        <div class="code-header">
+          <div class="code-filename"><span class="dot"></span> Dockerfile</div>
+          <div class="code-actions">
+            <button class="btn-copy" onclick="copyCode('dockerfileCode', this)">📋 Copy</button>
+            <button class="btn-dl" onclick="downloadFile('Dockerfile', 'dockerfileCode')">⬇ Download</button>
+          </div>
+        </div>
+        <div class="code-body">
+          <pre><code class="language-docker" id="dockerfileCode"></code></pre>
+        </div>
+      </div>
+
+      <!-- docker-compose -->
+      <div class="tab-panel" id="tab-compose">
+        <div class="code-header">
+          <div class="code-filename"><span class="dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></span> docker-compose.yml</div>
+          <div class="code-actions">
+            <button class="btn-copy" onclick="copyCode('composeCode', this)">📋 Copy</button>
+            <button class="btn-dl" onclick="downloadFile('docker-compose.yml', 'composeCode')">⬇ Download</button>
+          </div>
+        </div>
+        <div class="code-body">
+          <pre><code class="language-yaml" id="composeCode"></code></pre>
+        </div>
+      </div>
+
+      <!-- .dockerignore -->
+      <div class="tab-panel" id="tab-ignore">
+        <div class="code-header">
+          <div class="code-filename"><span class="dot" style="background:var(--yellow);box-shadow:0 0 6px var(--yellow)"></span> .dockerignore</div>
+          <div class="code-actions">
+            <button class="btn-copy" onclick="copyCode('ignoreCode', this)">📋 Copy</button>
+            <button class="btn-dl" onclick="downloadFile('.dockerignore', 'ignoreCode')">⬇ Download</button>
+          </div>
+        </div>
+        <div class="code-body">
+          <pre><code id="ignoreCode" style="font-family:'JetBrains Mono',monospace"></code></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- BOTTOM ACTIONS -->
+  <div class="bottom-actions" id="bottomActions">
+    <button class="btn-dl-all" onclick="downloadAll()">⬇ Download All Files</button>
+    <button class="btn-reset" onclick="resetApp()">↺ Scan Another Project</button>
+  </div>
+
+</main>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═══════════════════════════════════════════════════════════
+   CAPTAIN CONTAINER — Core Logic
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── State ── */
+let detectedStack = {};
+let generatedFiles = {};
+let apiKey = localStorage.getItem('cc_apikey') || '';
+
+/* ── On load ── */
+window.addEventListener('DOMContentLoaded', () => {
+  if (apiKey) {
+    document.getElementById('apiKeyInput').value = apiKey;
+    updateKeyStatus(true);
+  }
+  setupDragDrop();
+  document.getElementById('fileInput').addEventListener('change', e => {
+    if (e.target.files[0]) handleZip(e.target.files[0]);
+  });
+});
+
+/* ── API Key ── */
+function saveApiKey() {
+  const val = document.getElementById('apiKeyInput').value.trim();
+  if (!val.startsWith('sk-ant')) {
+    showToast('⚠ That doesn\'t look like an Anthropic key', 'error'); return;
+  }
+  apiKey = val;
+  localStorage.setItem('cc_apikey', val);
+  updateKeyStatus(true);
+  showToast('✔ API key saved', 'success');
+}
+function updateKeyStatus(ok) {
+  const el = document.getElementById('keyStatus');
+  el.textContent = ok ? '✔ Key saved' : 'No key saved';
+  el.className = 'key-status' + (ok ? ' ok' : '');
+}
+
+/* ── Drag & Drop ── */
+function setupDragDrop() {
+  const zone = document.getElementById('dropZone');
+  ['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => {
+    ev.preventDefault(); zone.classList.add('dragging');
+  }));
+  ['dragleave','dragend'].forEach(e => zone.addEventListener(e, () => {
+    zone.classList.remove('dragging');
+  }));
+  zone.addEventListener('drop', ev => {
+    ev.preventDefault();
+    zone.classList.remove('dragging');
+    const file = ev.dataTransfer.files[0];
+    if (!file) return;
+    if (!file.name.endsWith('.zip')) {
+      showToast('⚠ Please drop a .zip file', 'error'); return;
+    }
+    handleZip(file);
+  });
+}
+
+/* ── ZIP Handler ── */
+async function handleZip(file) {
+  resetOutput();
+  showScanPanel(true);
+
+  addLog('info', '📦', `Reading <span class="text">${file.name}</span> <span class="dim">(${formatSize(file.size)})</span>`);
+  setProgress(10);
+
+  let zip;
+  try {
+    zip = await JSZip.loadAsync(file);
+  } catch(e) {
+    addLog('warn', '✖', `Failed to read ZIP: ${e.message}`);
+    showToast('Failed to read ZIP file', 'error'); return;
+  }
+
+  // Collect all files
+  const entries = [];
+  zip.forEach((path, entry) => { if (!entry.dir) entries.push({ path, entry }); });
+
+  document.getElementById('scanBadge').textContent = `${entries.length} files`;
+  addLog('ok', '✔', `Found <span class="text">${entries.length} files</span>`);
+  setProgress(25);
+
+  // Read key files
+  const keyContents = {};
+  const keyFiles = [
+    'package.json','requirements.txt','Pipfile','pyproject.toml',
+    'pom.xml','build.gradle','go.mod','go.sum',
+    'composer.json','Gemfile','Cargo.toml',
+    'Dockerfile','docker-compose.yml',
+  ];
+  const csprojFiles = entries.filter(e => e.path.endsWith('.csproj') || e.path.endsWith('.fsproj'));
+
+  for (const { path, entry } of entries) {
+    const base = path.split('/').pop();
+    if (keyFiles.includes(base) || csprojFiles.find(e => e.path === path)) {
+      try {
+        keyContents[base] = await entry.async('string');
+        addLog('info', '→', `Reading <span class="text">${base}</span>`);
+      } catch(_) {}
+    }
+  }
+  setProgress(50);
+
+  // Detect stack
+  addLog('info', '🔍', 'Detecting tech stack…');
+  const stack = detectStack(entries.map(e => e.path), keyContents);
+  detectedStack = stack;
+  setProgress(70);
+
+  addLog('ok', '✔', `Detected: <span class="text">${stack.display}</span>`);
+  if (stack.framework) addLog('info', '→', `Framework: <span class="text">${stack.framework}</span>`);
+  addLog('info', '→', `Port: <span class="text">${stack.port}</span> &nbsp;|&nbsp; Start: <span class="text">${stack.startCmd}</span>`);
+
+  setProgress(85);
+
+  // Generate files
+  if (apiKey) {
+    addLog('ai', '✨', 'Using Claude AI for enhanced generation…');
+    document.getElementById('scanTitle').textContent = 'Claude is generating your files…';
+    try {
+      await generateWithAI(stack, keyContents, entries.map(e => e.path));
+    } catch(e) {
+      addLog('warn', '⚠', `AI failed (${e.message}), using local templates`);
+      generateLocally(stack);
+    }
+  } else {
+    addLog('info', '📝', 'Generating Docker files from smart templates…');
+    generateLocally(stack);
+  }
+
+  setProgress(100);
+  document.getElementById('scanTitle').textContent = 'Scan complete!';
+  document.getElementById('scanSpinner').style.display = 'none';
+
+  showStackCard(stack);
+  showOutput();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   STACK DETECTION
+   ═══════════════════════════════════════════════════════════ */
+function detectStack(filePaths, contents) {
+  const files = filePaths.map(p => p.split('/').pop().toLowerCase());
+  const hasFile = name => files.some(f => f === name.toLowerCase());
+  const hasExt  = ext  => filePaths.some(p => p.endsWith(ext));
+
+  let stack = 'generic', display = 'Generic App', icon = '📦';
+  let port = '8080', startCmd = './start.sh', buildCmd = '', framework = '';
+  let baseImage = 'debian:12-slim';
+
+  if (hasFile('package.json')) {
+    stack = 'node'; display = 'Node.js'; icon = '🟢';
+    port = '3000'; startCmd = 'node index.js'; buildCmd = 'npm ci';
+    baseImage = 'node:20-alpine';
+    try {
+      const pkg = JSON.parse(contents['package.json'] || '{}');
+      const scripts = pkg.scripts || {};
+      if (scripts.start)  startCmd = 'npm start';
+      if (scripts.serve)  startCmd = 'npm run serve';
+      if (scripts.dev && !scripts.start) startCmd = 'npm run dev';
+      // Detect framework
+      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+      if (deps.next)    { framework = 'Next.js';  port = '3000'; startCmd = 'npm start'; }
+      else if (deps.nuxt)    { framework = 'Nuxt.js';   port = '3000'; }
+      else if (deps.react)   { framework = 'React';     port = '3000'; }
+      else if (deps.vue)     { framework = 'Vue.js';    port = '8080'; }
+      else if (deps.express) { framework = 'Express.js'; port = '3000'; }
+      else if (deps.fastify) { framework = 'Fastify';   port = '3000'; }
+      else if (deps.koa)     { framework = 'Koa.js';    port = '3000'; }
+      const engines = pkg.engines || {};
+      if (engines.node) {
+        const ver = engines.node.replace(/[^0-9.]/g, '').split('.')[0];
+        if (ver) baseImage = `node:${ver}-alpine`;
+      }
+    } catch(_) {}
+  }
+  else if (hasFile('requirements.txt') || hasFile('pipfile') || hasFile('pyproject.toml')) {
+    stack = 'python'; display = 'Python'; icon = '🐍';
+    port = '5000'; startCmd = 'python app.py'; buildCmd = 'pip install -r requirements.txt';
+    baseImage = 'python:3.12-slim';
+    const req = (contents['requirements.txt'] || '').toLowerCase();
+    if      (req.includes('fastapi') || req.includes('uvicorn'))
+      { framework = 'FastAPI'; port = '8000'; startCmd = 'uvicorn main:app --host 0.0.0.0 --port 8000'; }
+    else if (req.includes('flask'))
+      { framework = 'Flask';   port = '5000'; startCmd = 'flask run --host=0.0.0.0 --port=5000'; }
+    else if (req.includes('django'))
+      { framework = 'Django';  port = '8000'; startCmd = 'python manage.py runserver 0.0.0.0:8000'; }
+    else if (req.includes('gunicorn'))
+      { framework = 'Gunicorn'; port = '8000'; startCmd = 'gunicorn -b 0.0.0.0:8000 app:app'; }
+    else if (req.includes('tornado'))
+      { framework = 'Tornado'; port = '8888'; }
+    else if (req.includes('aiohttp'))
+      { framework = 'aiohttp'; port = '8080'; }
+  }
+  else if (hasFile('pom.xml') || hasFile('build.gradle')) {
+    stack = 'java'; display = 'Java'; icon = '☕';
+    port = '8080'; startCmd = 'java -jar app.jar';
+    buildCmd = hasFile('pom.xml') ? 'mvn clean package -DskipTests' : 'gradle build -x test';
+    baseImage = 'eclipse-temurin:21-jre-alpine';
+    const pom = contents['pom.xml'] || '';
+    if (pom.includes('spring-boot')) { framework = 'Spring Boot'; }
+    if (pom.includes('quarkus'))     { framework = 'Quarkus'; }
+    if (pom.includes('micronaut'))   { framework = 'Micronaut'; }
+  }
+  else if (hasFile('go.mod')) {
+    stack = 'go'; display = 'Go'; icon = '🐹';
+    port = '8080'; startCmd = './app'; buildCmd = 'go build -o app .';
+    baseImage = 'golang:1.22-alpine';
+    const mod = contents['go.mod'] || '';
+    if (mod.includes('gin'))   framework = 'Gin';
+    if (mod.includes('fiber')) framework = 'Fiber';
+    if (mod.includes('echo'))  framework = 'Echo';
+    if (mod.includes('chi'))   framework = 'Chi';
+  }
+  else if (hasFile('composer.json')) {
+    stack = 'php'; display = 'PHP'; icon = '🐘';
+    port = '80'; startCmd = 'php-fpm'; buildCmd = 'composer install --no-dev';
+    baseImage = 'php:8.3-fpm-alpine';
+    const comp = contents['composer.json'] || '';
+    if (comp.includes('laravel'))   framework = 'Laravel';
+    if (comp.includes('symfony'))   framework = 'Symfony';
+    if (comp.includes('slim'))      framework = 'Slim';
+  }
+  else if (hasFile('gemfile')) {
+    stack = 'ruby'; display = 'Ruby'; icon = '💎';
+    port = '3000'; startCmd = 'ruby app.rb'; buildCmd = 'bundle install';
+    baseImage = 'ruby:3.3-alpine';
+    const gem = contents['Gemfile'] || '';
+    if (gem.includes('rails'))   { framework = 'Rails'; port = '3000'; startCmd = 'rails server -b 0.0.0.0'; }
+    if (gem.includes('sinatra')) { framework = 'Sinatra'; }
+  }
+  else if (hasFile('cargo.toml')) {
+    stack = 'rust'; display = 'Rust'; icon = '🦀';
+    port = '8080'; startCmd = './app'; buildCmd = 'cargo build --release';
+    baseImage = 'rust:1.77-alpine';
+    const cargo = contents['Cargo.toml'] || '';
+    if (cargo.includes('actix'))  framework = 'Actix-web';
+    if (cargo.includes('axum'))   framework = 'Axum';
+    if (cargo.includes('rocket')) framework = 'Rocket';
+  }
+  else if (hasExt('.csproj') || hasExt('.fsproj')) {
+    stack = 'dotnet'; display = '.NET'; icon = '🔷';
+    port = '8080'; startCmd = 'dotnet app.dll'; buildCmd = 'dotnet publish -c Release -o /app/publish';
+    baseImage = 'mcr.microsoft.com/dotnet/aspnet:8.0';
+    framework = 'ASP.NET Core';
+  }
+
+  return { stack, display, icon, port, startCmd, buildCmd, baseImage, framework };
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LOCAL TEMPLATE GENERATION
+   ═══════════════════════════════════════════════════════════ */
+function generateLocally(s) {
+  generatedFiles.dockerfile = buildDockerfile(s);
+  generatedFiles.compose    = buildCompose(s);
+  generatedFiles.ignore     = buildIgnore(s);
+  populateOutput();
+}
+
+function buildDockerfile(s) {
+  const multi = ['node','go','java','rust','dotnet'].includes(s.stack) && s.buildCmd;
+  const lines = [
+    `# ─────────────────────────────────────────────`,
+    `#  Dockerfile`,
+    `#  Stack : ${s.display}${s.framework ? ' · ' + s.framework : ''}`,
+    `#  Port  : ${s.port}`,
+    `# ─────────────────────────────────────────────`,
+    '',
+  ];
+
+  const BUILD_IMAGES = {
+    node:   'node:20-alpine',
+    python: 'python:3.12-slim',
+    java:   'eclipse-temurin:21-jdk-alpine',
+    go:     'golang:1.22-alpine',
+    php:    'php:8.3-fpm-alpine',
+    ruby:   'ruby:3.3-alpine',
+    rust:   'rust:1.77-alpine',
+    dotnet: 'mcr.microsoft.com/dotnet/sdk:8.0',
+    generic:'debian:12-slim',
+  };
+  const buildImg = BUILD_IMAGES[s.stack] || 'debian:12-slim';
+
+  if (multi) {
+    lines.push(`FROM ${buildImg} AS builder`);
+    lines.push(`WORKDIR /build`, '');
+
+    if (s.stack === 'node') {
+      lines.push(
+        '# Cache dependencies layer',
+        'COPY package*.json ./',
+        `RUN ${s.buildCmd}`,
+        'COPY . .', ''
+      );
+    } else if (s.stack === 'go') {
+      lines.push(
+        'COPY go.mod go.sum ./',
+        'RUN go mod download',
+        'COPY . .',
+        `RUN ${s.buildCmd}`, ''
+      );
+    } else if (s.stack === 'java') {
+      const isMaven = s.buildCmd.includes('mvn');
+      lines.push(
+        isMaven ? 'COPY pom.xml ./' : 'COPY build.gradle settings.gradle ./',
+        'COPY src ./src',
+        `RUN ${s.buildCmd}`, ''
+      );
+    } else if (s.stack === 'rust') {
+      lines.push(
+        'COPY Cargo.toml Cargo.lock ./',
+        'COPY src ./src',
+        `RUN ${s.buildCmd}`, ''
+      );
+    } else if (s.stack === 'dotnet') {
+      lines.push(
+        'COPY *.csproj ./',
+        'RUN dotnet restore',
+        'COPY . .',
+        `RUN ${s.buildCmd}`, ''
+      );
+    } else {
+      lines.push('COPY . .', `RUN ${s.buildCmd}`, '');
+    }
+
+    lines.push(
+      `# ── Runtime image (lean) ─────────────────`,
+      `FROM ${s.baseImage}`,
+      'WORKDIR /app', ''
+    );
+
+    if (s.stack === 'node') {
+      lines.push(
+        'COPY --from=builder /build/node_modules ./node_modules',
+        'COPY --from=builder /build/ ./', ''
+      );
+    } else if (s.stack === 'go') {
+      lines.push('COPY --from=builder /build/app ./app', '');
+    } else if (s.stack === 'java') {
+      lines.push('COPY --from=builder /build/target/*.jar app.jar', '');
+    } else if (s.stack === 'rust') {
+      lines.push('COPY --from=builder /build/target/release/app ./app', '');
+    } else if (s.stack === 'dotnet') {
+      lines.push('COPY --from=builder /app/publish .', '');
+    }
+  } else {
+    lines.push(`FROM ${buildImg}`);
+    lines.push('WORKDIR /app', '');
+
+    if (s.stack === 'python') {
+      lines.push(
+        '# Cache pip layer',
+        'COPY requirements*.txt ./',
+        'RUN pip install --no-cache-dir -r requirements.txt',
+        '', 'COPY . .', ''
+      );
+    } else if (s.stack === 'php') {
+      lines.push(
+        'COPY composer*.json ./',
+        'RUN composer install --no-dev --optimize-autoloader',
+        '', 'COPY . .', ''
+      );
+    } else if (s.stack === 'ruby') {
+      lines.push(
+        'COPY Gemfile* ./',
+        'RUN bundle install --without development test',
+        '', 'COPY . .', ''
+      );
+    } else {
+      if (s.buildCmd) {
+        lines.push('COPY . .', `RUN ${s.buildCmd}`, '');
+      } else {
+        lines.push('COPY . .', '');
+      }
+    }
+  }
+
+  // Non-root (not dotnet, distroless)
+  if (!['dotnet'].includes(s.stack)) {
+    lines.push(
+      '# Security: run as non-root',
+      'RUN addgroup -S appgroup && adduser -S appuser -G appgroup',
+      'USER appuser', ''
+    );
+  }
+
+  lines.push(
+    '# Healthcheck',
+    `HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \\`,
+    `  CMD wget -qO- http://localhost:${s.port}/health || exit 1`,
+    ''
+  );
+
+  lines.push(`EXPOSE ${s.port}`, '');
+  lines.push(`CMD ${JSON.stringify(s.startCmd.split(' '))}`);
+
+  return lines.join('\n');
+}
+
+function buildCompose(s) {
+  return `# docker-compose.yml
+# Stack: ${s.display}${s.framework ? ' · ' + s.framework : ''}
+
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: \${APP_NAME:-myapp}:latest
+    container_name: \${APP_NAME:-myapp}
+    restart: unless-stopped
+    ports:
+      - "\${PORT:-${s.port}}:${s.port}"
+    environment:
+      - NODE_ENV=\${NODE_ENV:-production}
+    env_file:
+      - .env.example   # rename to .env with real values
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:${s.port}/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - app-network
+
+  # ── Optional: Nginx reverse proxy ─────────────────
+  # nginx:
+  #   image: nginx:alpine
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf
+  #   depends_on:
+  #     - app
+  #   networks:
+  #     - app-network
+
+  # ── Optional: PostgreSQL database ─────────────────
+  # db:
+  #   image: postgres:16-alpine
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: \${DB_USER:-user}
+  #     POSTGRES_PASSWORD: \${DB_PASS:-password}
+  #     POSTGRES_DB: \${DB_NAME:-appdb}
+  #   volumes:
+  #     - db_data:/var/lib/postgresql/data
+  #   networks:
+  #     - app-network
+
+  # ── Optional: Redis cache ──────────────────────────
+  # redis:
+  #   image: redis:7-alpine
+  #   restart: unless-stopped
+  #   networks:
+  #     - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
+# volumes:
+#   db_data:
+`;
+}
+
+function buildIgnore(s) {
+  const common = [
+    '# ── Version control ──────────────────────',
+    '.git/', '.gitignore', '.github/', '.svn/',
+    '', '# ── Environment & secrets ───────────────',
+    '.env', '.env.*', '*.pem', '*.key', '*.cert',
+    '', '# ── Docker files ────────────────────────',
+    'Dockerfile*', 'docker-compose*.yml', '.dockerignore',
+    '', '# ── Docs & misc ─────────────────────────',
+    '*.md', 'LICENSE', '*.log', 'logs/', 'tmp/', '.DS_Store', 'Thumbs.db',
+  ];
+
+  const extras = {
+    node:   ['', '# ── Node.js ─────────────────────────────', 'node_modules/', 'dist/', 'build/', '.npm', '.eslintcache', 'coverage/', '*.test.js', '*.spec.js', '.next/', '.nuxt/'],
+    python: ['', '# ── Python ──────────────────────────────', '__pycache__/', '*.pyc', '*.pyo', '.venv/', 'venv/', 'env/', '.pytest_cache/', '*.egg-info/', 'dist/', 'build/', '.mypy_cache/'],
+    java:   ['', '# ── Java ────────────────────────────────', 'target/', '*.class', '.mvn/', '.gradle/', 'build/'],
+    go:     ['', '# ── Go ──────────────────────────────────', 'vendor/', '*.exe', '*.test', 'bin/'],
+    php:    ['', '# ── PHP ─────────────────────────────────', 'vendor/', '*.cache', 'storage/logs/', 'bootstrap/cache/'],
+    ruby:   ['', '# ── Ruby ────────────────────────────────', '.bundle/', 'vendor/bundle/', 'coverage/', 'log/', 'tmp/'],
+    rust:   ['', '# ── Rust ────────────────────────────────', 'target/', 'Cargo.lock'],
+    dotnet: ['', '# ── .NET ────────────────────────────────', 'bin/', 'obj/', '*.user', '.vs/'],
+  };
+
+  return [...common, ...(extras[s.stack] || [])].join('\n');
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AI GENERATION  (Claude API)
+   ═══════════════════════════════════════════════════════════ */
+async function generateWithAI(stack, contents, filePaths) {
+  const fileList = filePaths.slice(0, 80).join('\n');
+  const keyFileDump = Object.entries(contents)
+    .slice(0, 6)
+    .map(([name, text]) => `\n### ${name}\n\`\`\`\n${text.slice(0, 800)}\n\`\`\``)
+    .join('');
+
+  const prompt = `You are a senior DevOps engineer. Generate production-ready Docker files for this project.
+
+**Detected Stack:** ${stack.display} (${stack.stack})${stack.framework ? ` using ${stack.framework}` : ''}
+**Default Port:** ${stack.port}
+**Start Command:** ${stack.startCmd}
+
+**Project file tree (first 80 files):**
+\`\`\`
+${fileList}
+\`\`\`
+
+**Key config files:**
+${keyFileDump}
+
+Generate exactly these 3 files. Use XML tags.
+
+<DOCKERFILE>
+(complete Dockerfile — multi-stage if compiled, single-stage if interpreted, non-root user, healthcheck, best practices)
+</DOCKERFILE>
+
+<COMPOSE>
+(complete docker-compose.yml — with app service, optional nginx/db/redis commented out, healthcheck, env_file)
+</COMPOSE>
+
+<IGNORE>
+(complete .dockerignore for this stack)
+</IGNORE>
+
+Rules:
+- Use lightweight base images (alpine/slim)
+- Add healthcheck using wget
+- Non-root user (addgroup/adduser)
+- Layer caching (copy dependency files before source)
+- No explanations, only the file content inside tags`;
+
+  const response = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4096,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.error?.message || `HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  const text = data.content[0]?.text || '';
+
+  const extract = (tag) => {
+    const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
+    return m ? m[1].trim() : null;
+  };
+
+  generatedFiles.dockerfile = extract('DOCKERFILE') || buildDockerfile(stack);
+  generatedFiles.compose    = extract('COMPOSE')    || buildCompose(stack);
+  generatedFiles.ignore     = extract('IGNORE')     || buildIgnore(stack);
+  populateOutput();
+}
+
+/* ═══════════════════════════════════════════════════════════
+   UI HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function populateOutput() {
+  setCode('dockerfileCode', generatedFiles.dockerfile);
+  setCode('composeCode',    generatedFiles.compose);
+  setCode('ignoreCode',     generatedFiles.ignore);
+  Prism.highlightAll();
+}
+
+function setCode(id, text) {
+  document.getElementById(id).textContent = text;
+}
+
+function showStackCard(s) {
+  const card = document.getElementById('stackCard');
+  card.classList.add('active', 'fade-in');
+  document.getElementById('stackIcon').textContent = s.icon;
+  document.getElementById('stackName').textContent = s.display + (s.framework ? ' · ' + s.framework : '');
+  document.getElementById('stackMeta').textContent = `Base: ${s.baseImage} · Port: ${s.port}`;
+
+  const pills = document.getElementById('stackPills');
+  pills.innerHTML = '';
+  const add = (label, cls) => {
+    const p = document.createElement('span');
+    p.className = `pill ${cls}`; p.textContent = label;
+    pills.appendChild(p);
+  };
+  add(`port ${s.port}`, 'cyan');
+  if (s.buildCmd)  add('multi-stage build', 'purple');
+  add('non-root user', 'green');
+  add('healthcheck', 'green');
+  add('layer cache', 'yellow');
+}
+
+function showOutput() {
+  const out = document.getElementById('outputSection');
+  out.classList.add('active', 'fade-in');
+  document.getElementById('bottomActions').classList.add('active', 'fade-in');
+}
+
+function showScanPanel(show) {
+  document.getElementById('scanningPanel').classList.toggle('active', show);
+}
+
+function setProgress(pct) {
+  document.getElementById('progressFill').style.width = pct + '%';
+}
+
+function addLog(type, icon, html) {
+  const log = document.getElementById('scanLog');
+  const line = document.createElement('div');
+  line.className = `line ${type}`;
+  line.innerHTML = `<span class="icon">${icon}</span><span>${html}</span>`;
+  log.appendChild(line);
+  log.scrollTop = log.scrollHeight;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) => {
+    t.classList.toggle('active', ['dockerfile','compose','ignore'][i] === name);
+  });
+  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`tab-${name}`).classList.add('active');
+}
+
+/* ── Copy & Download ── */
+function copyCode(id, btn) {
+  const text = document.getElementById(id).textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    btn.textContent = '✔ Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function downloadFile(filename, id) {
+  const text = document.getElementById(id).textContent;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+  a.download = filename;
+  a.click();
+  showToast(`⬇ Downloaded ${filename}`, 'success');
+}
+
+function downloadAll() {
+  const files = [
+    { name: 'Dockerfile',         id: 'dockerfileCode' },
+    { name: 'docker-compose.yml', id: 'composeCode' },
+    { name: '.dockerignore',      id: 'ignoreCode' },
+  ];
+  let i = 0;
+  const next = () => {
+    if (i >= files.length) { showToast('✔ All 3 files downloaded!', 'success'); return; }
+    const { name, id } = files[i++];
+    const text = document.getElementById(id).textContent;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
+    a.download = name; a.click();
+    setTimeout(next, 400);
+  };
+  next();
+}
+
+function regenerate() {
+  if (!detectedStack.stack) return;
+  if (apiKey) {
+    showToast('⟳ Re-generating with AI…', 'success');
+    generateWithAI(detectedStack, {}, []).then(populateOutput);
+  } else {
+    generateLocally(detectedStack);
+    showToast('⟳ Files regenerated', 'success');
+  }
+}
+
+function resetOutput() {
+  document.getElementById('scanLog').innerHTML = '';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('scanTitle').textContent = 'Scanning project…';
+  document.getElementById('scanSpinner').style.display = '';
+  document.getElementById('stackCard').className = 'stack-card';
+  document.getElementById('outputSection').className = 'output-section';
+  document.getElementById('bottomActions').className = 'bottom-actions';
+}
+
+function resetApp() {
+  resetOutput();
+  showScanPanel(false);
+  document.getElementById('fileInput').value = '';
+  generatedFiles = {}; detectedStack = {};
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* ── Toast ── */
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+/* ── Util ── */
+function formatSize(bytes) {
+  if (bytes < 1024) return bytes + ' B';
+  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1048576).toFixed(1) + ' MB';
+}
+</script>
+</body>
+</html>
