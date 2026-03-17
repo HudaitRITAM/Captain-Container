@@ -1,1439 +1,1753 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>🐳 Captain Container</title>
-
-<!-- JSZip for reading ZIP files in browser -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<!-- Prism for syntax highlighting -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/themes/prism-tomorrow.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-docker.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-yaml.min.js"></script>
-
 <style>
-/* ── FONTS ── */
-@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
-
-/* ── VARIABLES ── */
-:root {
-  --bg:       #080c10;
-  --surface:  #0d1117;
-  --surface2: #161b22;
-  --surface3: #1c2430;
-  --border:   #21262d;
-  --border2:  #30363d;
-  --cyan:     #00e5ff;
-  --green:    #3fb950;
-  --yellow:   #e3b341;
-  --red:      #f85149;
-  --purple:   #bc8cff;
-  --text:     #e6edf3;
-  --muted:    #8b949e;
-  --dim:      #484f58;
-  --glow-c:   rgba(0,229,255,0.15);
-  --glow-g:   rgba(63,185,80,0.12);
-  --r:        10px;
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap');
+:root{
+  --bg:#05070a;--s1:#0b0f14;--s2:#111720;--s3:#171f2b;
+  --border:#1e2835;--border2:#273040;
+  --accent:#00d4aa;--accent2:#00a8ff;--warm:#ff9f43;
+  --red:#ff5f5f;--green:#44e580;--purple:#b794f4;
+  --muted:#7a8fa6;--dim:#3d4f63;--text:#d8e8f8;
+  --r:12px;--glow:rgba(0,212,170,0.12);
 }
-
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: 'Space Grotesk', sans-serif;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
-/* grid noise texture */
-body::before {
-  content: '';
-  position: fixed; inset: 0;
-  background-image:
-    linear-gradient(rgba(0,229,255,0.02) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,229,255,0.02) 1px, transparent 1px);
-  background-size: 32px 32px;
-  pointer-events: none;
-  z-index: 0;
-}
-
-/* ── HEADER ── */
-header {
-  position: relative; z-index: 10;
-  padding: 18px 32px;
-  border-bottom: 1px solid var(--border);
-  background: rgba(8,12,16,0.9);
-  backdrop-filter: blur(12px);
-  display: flex; align-items: center; justify-content: space-between;
-}
-
-.logo {
-  display: flex; align-items: center; gap: 12px;
-}
-.logo-icon {
-  font-size: 28px;
-  filter: drop-shadow(0 0 8px var(--cyan));
-}
-.logo-text {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 18px;
-  font-weight: 600;
-  color: var(--cyan);
-  letter-spacing: -0.5px;
-}
-.logo-sub {
-  font-size: 11px;
-  color: var(--muted);
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 1px;
-  text-transform: uppercase;
-}
-.badge {
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: 20px;
-  padding: 4px 12px;
-  font-size: 11px;
-  color: var(--green);
-  font-family: 'JetBrains Mono', monospace;
-  letter-spacing: 0.5px;
-}
-
-/* ── MAIN LAYOUT ── */
-main {
-  position: relative; z-index: 1;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 40px 24px;
-}
-
-/* ── API KEY BANNER ── */
-.api-banner {
-  background: linear-gradient(135deg, rgba(188,140,255,0.08), rgba(0,229,255,0.06));
-  border: 1px solid rgba(188,140,255,0.25);
-  border-radius: var(--r);
-  padding: 14px 20px;
-  display: flex; align-items: center; gap: 12px;
-  margin-bottom: 28px;
-  font-size: 13px;
-  flex-wrap: wrap;
-}
-.api-banner .spark { font-size: 18px; }
-.api-banner strong { color: var(--purple); }
-.api-banner-right { display: flex; gap: 8px; align-items: center; margin-left: auto; flex-wrap: wrap; }
-.api-input {
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: 8px;
-  padding: 7px 12px;
-  color: var(--text);
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  width: 280px;
-  outline: none;
-  transition: border-color .2s;
-}
-.api-input:focus { border-color: var(--purple); }
-.api-input::placeholder { color: var(--dim); }
-.btn-save-key {
-  background: rgba(188,140,255,0.15);
-  border: 1px solid rgba(188,140,255,0.4);
-  color: var(--purple);
-  border-radius: 8px;
-  padding: 7px 14px;
-  font-size: 12px;
-  cursor: pointer;
-  font-family: 'Space Grotesk', sans-serif;
-  font-weight: 500;
-  transition: all .2s;
-}
-.btn-save-key:hover { background: rgba(188,140,255,0.25); }
-.key-status { font-size: 11px; color: var(--muted); }
-.key-status.ok { color: var(--green); }
-
-/* ── DROP ZONE ── */
-.drop-section {
-  text-align: center;
-  margin-bottom: 32px;
-}
-
-.drop-zone {
-  border: 2px dashed var(--border2);
-  border-radius: 16px;
-  padding: 64px 32px;
-  background: var(--surface);
-  cursor: pointer;
-  transition: all .3s ease;
-  position: relative;
-  overflow: hidden;
-}
-.drop-zone::before {
-  content: '';
-  position: absolute; inset: 0;
-  background: radial-gradient(ellipse at 50% 50%, var(--glow-c), transparent 70%);
-  opacity: 0;
-  transition: opacity .3s;
-}
-.drop-zone:hover::before,
-.drop-zone.dragging::before { opacity: 1; }
-.drop-zone:hover,
-.drop-zone.dragging {
-  border-color: var(--cyan);
-  background: rgba(0,229,255,0.04);
-  transform: scale(1.005);
-}
-.drop-zone.dragging {
-  border-style: solid;
-  box-shadow: 0 0 40px rgba(0,229,255,0.12), inset 0 0 40px rgba(0,229,255,0.04);
-}
-
-.drop-icon {
-  font-size: 56px;
-  margin-bottom: 16px;
-  filter: drop-shadow(0 0 12px rgba(0,229,255,0.3));
-  display: block;
-  animation: float 3s ease-in-out infinite;
-}
-@keyframes float {
-  0%,100% { transform: translateY(0); }
-  50%      { transform: translateY(-8px); }
-}
-
-.drop-title {
-  font-size: 20px;
-  font-weight: 600;
-  color: var(--text);
-  margin-bottom: 8px;
-}
-.drop-sub {
-  font-size: 14px;
-  color: var(--muted);
-  margin-bottom: 20px;
-}
-.drop-hint {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 6px 14px;
-  font-size: 12px;
-  color: var(--dim);
-  font-family: 'JetBrains Mono', monospace;
-}
-
-.btn-browse {
-  display: inline-block;
-  margin-top: 20px;
-  background: linear-gradient(135deg, rgba(0,229,255,0.15), rgba(0,229,255,0.08));
-  border: 1px solid rgba(0,229,255,0.3);
-  color: var(--cyan);
-  border-radius: 8px;
-  padding: 10px 24px;
-  font-size: 14px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: 'Space Grotesk', sans-serif;
-  transition: all .2s;
-  position: relative; z-index: 2;
-}
-.btn-browse:hover {
-  background: linear-gradient(135deg, rgba(0,229,255,0.25), rgba(0,229,255,0.12));
-  box-shadow: 0 0 20px rgba(0,229,255,0.15);
-}
-
-#fileInput { display: none; }
-
-/* ── SCANNING STATE ── */
-.scanning-panel {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 24px;
-  margin-bottom: 28px;
-  display: none;
-}
-.scanning-panel.active { display: block; }
-
-.scan-header {
-  display: flex; align-items: center; gap: 10px;
-  margin-bottom: 20px;
-}
-.scan-title { font-size: 15px; font-weight: 600; }
-.scan-badge {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 11px;
-  background: rgba(0,229,255,0.1);
-  border: 1px solid rgba(0,229,255,0.2);
-  color: var(--cyan);
-  border-radius: 4px;
-  padding: 2px 8px;
-}
-
-.scan-progress-bar {
-  background: var(--surface2);
-  border-radius: 4px;
-  height: 4px;
-  overflow: hidden;
-  margin-bottom: 16px;
-}
-.scan-progress-fill {
-  height: 100%;
-  background: linear-gradient(90deg, var(--cyan), var(--green));
-  border-radius: 4px;
-  width: 0%;
-  transition: width .4s ease;
-  box-shadow: 0 0 8px var(--cyan);
-}
-
-.scan-log {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 12px;
-  color: var(--muted);
-  line-height: 2;
-  max-height: 180px;
-  overflow-y: auto;
-}
-.scan-log .line { display: flex; gap: 10px; align-items: baseline; }
-.scan-log .line.ok   .icon { color: var(--green); }
-.scan-log .line.info .icon { color: var(--cyan); }
-.scan-log .line.warn .icon { color: var(--yellow); }
-.scan-log .line.ai   .icon { color: var(--purple); }
-.scan-log .text { color: var(--text); }
-.scan-log .dim  { color: var(--dim); }
-
-/* ── DETECTED STACK ── */
-.stack-card {
-  background: var(--surface2);
-  border: 1px solid var(--border);
-  border-radius: var(--r);
-  padding: 20px 24px;
-  margin-bottom: 28px;
-  display: none;
-  gap: 20px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-.stack-card.active { display: flex; }
-
-.stack-icon { font-size: 40px; filter: drop-shadow(0 0 10px rgba(0,229,255,0.3)); }
-.stack-info { flex: 1; }
-.stack-name {
-  font-size: 18px; font-weight: 600;
-  color: var(--cyan); margin-bottom: 4px;
-}
-.stack-meta { font-size: 12px; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
-.stack-pills { display: flex; gap: 8px; flex-wrap: wrap; }
-.pill {
-  font-size: 11px;
-  font-family: 'JetBrains Mono', monospace;
-  border-radius: 4px;
-  padding: 3px 10px;
-  border: 1px solid;
-}
-.pill.green { background: rgba(63,185,80,0.1);   border-color: rgba(63,185,80,0.3);   color: var(--green); }
-.pill.cyan  { background: rgba(0,229,255,0.08);  border-color: rgba(0,229,255,0.25);  color: var(--cyan); }
-.pill.yellow{ background: rgba(227,179,65,0.1);  border-color: rgba(227,179,65,0.3);  color: var(--yellow); }
-.pill.purple{ background: rgba(188,140,255,0.1); border-color: rgba(188,140,255,0.3); color: var(--purple); }
-
-.btn-regen {
-  background: rgba(63,185,80,0.1);
-  border: 1px solid rgba(63,185,80,0.3);
-  color: var(--green);
-  border-radius: 8px;
-  padding: 8px 18px;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: 'Space Grotesk', sans-serif;
-  transition: all .2s;
-}
-.btn-regen:hover { background: rgba(63,185,80,0.18); }
-
-/* ── OUTPUT TABS ── */
-.output-section { display: none; }
-.output-section.active { display: block; }
-
-.tab-bar {
-  display: flex; gap: 4px;
-  border-bottom: 1px solid var(--border);
-  margin-bottom: 0;
-}
-.tab {
-  padding: 10px 20px;
-  font-size: 13px;
-  font-weight: 500;
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--muted);
-  cursor: pointer;
-  border-radius: 8px 8px 0 0;
-  border: 1px solid transparent;
-  border-bottom: none;
-  transition: all .2s;
-  display: flex; align-items: center; gap: 8px;
-  position: relative; top: 1px;
-}
-.tab:hover { color: var(--text); background: var(--surface2); }
-.tab.active {
-  color: var(--cyan);
-  background: var(--surface);
-  border-color: var(--border);
-  border-bottom-color: var(--surface);
-}
-
-.tab-content {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-top: none;
-  border-radius: 0 0 var(--r) var(--r);
-}
-.tab-panel { display: none; }
-.tab-panel.active { display: block; }
-
-.code-header {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
-  background: var(--surface2);
-}
-.code-filename {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 13px;
-  color: var(--muted);
-  display: flex; align-items: center; gap: 8px;
-}
-.code-filename .dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--cyan); box-shadow: 0 0 6px var(--cyan);
-}
-.code-actions { display: flex; gap: 8px; }
-
-.btn-copy, .btn-dl {
-  display: flex; align-items: center; gap: 6px;
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: 'Space Grotesk', sans-serif;
-  transition: all .2s;
-  border: 1px solid;
-}
-.btn-copy {
-  background: rgba(0,229,255,0.08);
-  border-color: rgba(0,229,255,0.2);
-  color: var(--cyan);
-}
-.btn-copy:hover { background: rgba(0,229,255,0.15); }
-.btn-copy.copied { color: var(--green); border-color: rgba(63,185,80,0.3); background: rgba(63,185,80,0.1); }
-.btn-dl {
-  background: rgba(63,185,80,0.08);
-  border-color: rgba(63,185,80,0.2);
-  color: var(--green);
-}
-.btn-dl:hover { background: rgba(63,185,80,0.15); }
-
-.code-body {
-  padding: 0;
-  overflow-x: auto;
-  max-height: 520px;
-  overflow-y: auto;
-}
-.code-body pre {
-  margin: 0 !important;
-  padding: 20px !important;
-  background: transparent !important;
-  font-family: 'JetBrains Mono', monospace !important;
-  font-size: 13px !important;
-  line-height: 1.7 !important;
-}
-.code-body code { font-size: 13px !important; }
-
-/* scrollbar */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--surface); }
-::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: var(--dim); }
-
-/* ── BOTTOM ACTIONS ── */
-.bottom-actions {
-  display: none;
-  gap: 12px;
-  margin-top: 20px;
-  flex-wrap: wrap;
-}
-.bottom-actions.active { display: flex; }
-
-.btn-dl-all {
-  background: linear-gradient(135deg, rgba(63,185,80,0.2), rgba(0,229,255,0.12));
-  border: 1px solid rgba(63,185,80,0.4);
-  color: var(--green);
-  border-radius: 8px;
-  padding: 11px 24px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  font-family: 'Space Grotesk', sans-serif;
-  transition: all .2s;
-  display: flex; align-items: center; gap: 8px;
-}
-.btn-dl-all:hover {
-  background: linear-gradient(135deg, rgba(63,185,80,0.3), rgba(0,229,255,0.18));
-  box-shadow: 0 0 20px rgba(63,185,80,0.15);
-}
-
-.btn-reset {
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  color: var(--muted);
-  border-radius: 8px;
-  padding: 11px 20px;
-  font-size: 14px;
-  cursor: pointer;
-  font-family: 'Space Grotesk', sans-serif;
-  transition: all .2s;
-}
-.btn-reset:hover { color: var(--text); border-color: var(--dim); }
-
-/* ── SUPPORTED STACKS ── */
-.stacks-row {
-  display: flex; gap: 8px; flex-wrap: wrap; justify-content: center;
-  margin-top: 24px;
-}
-.stack-tag {
-  display: flex; align-items: center; gap: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 20px;
-  padding: 5px 12px;
-  font-size: 12px;
-  color: var(--dim);
-  font-family: 'JetBrains Mono', monospace;
-  transition: all .2s;
-}
-.stack-tag:hover { border-color: var(--border2); color: var(--muted); }
-
-/* ── TOAST ── */
-.toast {
-  position: fixed; bottom: 24px; right: 24px;
-  background: var(--surface2);
-  border: 1px solid var(--border2);
-  border-radius: 10px;
-  padding: 12px 18px;
-  font-size: 13px;
-  display: flex; align-items: center; gap: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-  transform: translateY(80px);
-  opacity: 0;
-  transition: all .3s ease;
-  z-index: 100;
-}
-.toast.show { transform: translateY(0); opacity: 1; }
-.toast.success { border-color: rgba(63,185,80,0.4); }
-.toast.error   { border-color: rgba(248,81,73,0.4); }
-
-/* ── SPINNER ── */
-.spinner {
-  width: 14px; height: 14px;
-  border: 2px solid rgba(0,229,255,0.2);
-  border-top-color: var(--cyan);
-  border-radius: 50%;
-  animation: spin .7s linear infinite;
-  display: inline-block;
-}
-@keyframes spin { to { transform: rotate(360deg); } }
-
-/* ── ANIMATIONS ── */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(12px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.fade-in { animation: fadeIn .4s ease forwards; }
-
-.pulse { animation: pulse 2s ease-in-out infinite; }
-@keyframes pulse {
-  0%,100% { opacity: 1; }
-  50%      { opacity: 0.6; }
-}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;background-image:linear-gradient(rgba(0,212,170,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(0,212,170,.03) 1px,transparent 1px);background-size:40px 40px;pointer-events:none;z-index:0;animation:gp 8s ease-in-out infinite}
+body::after{content:'';position:fixed;top:-200px;right:-200px;width:600px;height:600px;background:radial-gradient(circle,rgba(0,168,255,.05),transparent 70%);pointer-events:none;z-index:0}
+@keyframes gp{0%,100%{opacity:.6}50%{opacity:1}}
+header{position:relative;z-index:10;padding:16px 32px;border-bottom:1px solid var(--border);background:rgba(5,7,10,.95);backdrop-filter:blur(16px);display:flex;align-items:center;justify-content:space-between}
+.logo{display:flex;align-items:center;gap:14px}
+.lw{font-size:30px;animation:bob 3s ease-in-out infinite;filter:drop-shadow(0 0 8px rgba(0,212,170,.3))}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-3deg)}50%{transform:translateY(-5px) rotate(3deg)}}
+.ln{font-size:20px;font-weight:800;letter-spacing:-1px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.lt{font-size:10px;color:var(--dim);font-family:'JetBrains Mono',monospace;letter-spacing:2px;text-transform:uppercase;margin-top:1px}
+.hbadge{display:flex;align-items:center;gap:8px;background:rgba(68,229,128,.08);border:1px solid rgba(68,229,128,.15);border-radius:20px;padding:5px 14px}
+.hdot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s ease-in-out infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.htxt{font-size:11px;color:var(--green);font-family:'JetBrains Mono',monospace;letter-spacing:.5px}
+main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:36px 24px}
+/* drop zone */
+.dropzone{border:2px dashed var(--border2);border-radius:20px;padding:56px 40px;background:var(--s1);cursor:pointer;transition:all .35s cubic-bezier(.4,0,.2,1);position:relative;overflow:hidden;text-align:center;margin-bottom:12px}
+.dropzone::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% 80%,var(--glow),transparent 65%);opacity:0;transition:opacity .35s}
+.dropzone:hover::before,.dropzone.over::before{opacity:1}
+.dropzone:hover,.dropzone.over{border-color:var(--accent);background:rgba(0,212,170,.03);transform:scale(1.003)}
+.dropzone.over{border-style:solid;box-shadow:0 0 60px rgba(0,212,170,.1)}
+.di{font-size:54px;display:block;margin-bottom:14px;filter:drop-shadow(0 0 14px rgba(0,212,170,.3));animation:flt 4s ease-in-out infinite}
+@keyframes flt{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+.dt{font-size:21px;font-weight:700;margin-bottom:8px;letter-spacing:-.5px}
+.ds{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.7}
+.dcta{display:inline-flex;align-items:center;gap:8px;background:linear-gradient(135deg,rgba(0,212,170,.15),rgba(0,168,255,.1));border:1px solid rgba(0,212,170,.35);color:var(--accent);border-radius:10px;padding:11px 26px;font-size:14px;font-weight:600;cursor:pointer;font-family:'Syne',sans-serif;transition:all .2s;position:relative;z-index:2}
+.dcta:hover{background:linear-gradient(135deg,rgba(0,212,170,.25),rgba(0,168,255,.18));box-shadow:0 0 24px rgba(0,212,170,.2)}
+.dfmt{display:flex;align-items:center;gap:8px;justify-content:center;margin-top:16px}
+.fb{font-size:11px;font-family:'JetBrains Mono',monospace;background:var(--s2);border:1px solid var(--border);border-radius:6px;padding:4px 10px;color:var(--dim)}
+#fi{display:none}
+.srow{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;margin-top:16px;margin-bottom:28px}
+.stk{display:flex;align-items:center;gap:5px;background:var(--s1);border:1px solid var(--border);border-radius:20px;padding:4px 11px;font-size:11px;color:var(--dim);font-family:'JetBrains Mono',monospace;transition:all .2s}
+.stk:hover{border-color:var(--border2);color:var(--muted)}
+/* scan panel */
+.scanpanel{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);padding:22px 24px;margin-bottom:24px;display:none}
+.scanpanel.on{display:block;animation:fu .3s ease}
+@keyframes fu{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.stop{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.stitle{font-size:14px;font-weight:600;flex:1}
+.scnt{font-family:'JetBrains Mono',monospace;font-size:11px;background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.2);color:var(--accent);border-radius:4px;padding:2px 9px}
+.bw{background:var(--s2);border-radius:4px;height:3px;overflow:hidden;margin-bottom:14px}
+.bf{height:100%;width:0%;background:linear-gradient(90deg,var(--accent),var(--accent2));border-radius:4px;transition:width .35s ease;box-shadow:0 0 8px var(--accent)}
+.slog{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);line-height:2;max-height:200px;overflow-y:auto}
+.slog .row{display:flex;gap:8px}
+.slog .ic{min-width:14px}
+.slog .ok .ic{color:var(--green)}.slog .inf .ic{color:var(--accent2)}.slog .det .ic{color:var(--accent)}.slog .wrn .ic{color:var(--warm)}.slog .src .ic{color:var(--purple)}
+.slog .txt{color:var(--text)}.slog .dm{color:var(--dim)}
+/* intel card */
+.icard{background:var(--s1);border:1px solid var(--border);border-radius:var(--r);margin-bottom:20px;overflow:hidden;display:none}
+.icard.on{display:block;animation:fu .4s ease}
+.ih{display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid var(--border);background:var(--s2);flex-wrap:wrap;gap:12px}
+.ileft{display:flex;align-items:center;gap:14px}
+.iico{font-size:42px;filter:drop-shadow(0 0 12px rgba(0,212,170,.25))}
+.inam{font-size:19px;font-weight:700;letter-spacing:-.5px}
+.isub{font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:2px}
+.ipills{display:flex;gap:5px;flex-wrap:wrap}
+.pill{font-size:10px;font-family:'JetBrains Mono',monospace;border-radius:4px;padding:3px 8px;border:1px solid;font-weight:500}
+.pg{background:rgba(68,229,128,.08);border-color:rgba(68,229,128,.25);color:var(--green)}
+.pt{background:rgba(0,212,170,.08);border-color:rgba(0,212,170,.25);color:var(--accent)}
+.pb{background:rgba(0,168,255,.08);border-color:rgba(0,168,255,.25);color:var(--accent2)}
+.pw{background:rgba(255,159,67,.08);border-color:rgba(255,159,67,.25);color:var(--warm)}
+.pr{background:rgba(255,95,95,.08);border-color:rgba(255,95,95,.25);color:var(--red)}
+.pp{background:rgba(183,148,244,.08);border-color:rgba(183,148,244,.25);color:var(--purple)}
+.ibody{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr))}
+.istat{padding:14px 20px;border-right:1px solid var(--border);border-bottom:1px solid var(--border)}
+.istat:last-child{border-right:none}
+.islbl{font-size:9px;color:var(--dim);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:1.2px;margin-bottom:5px}
+.isval{font-size:12px;font-weight:600;color:var(--text);font-family:'JetBrains Mono',monospace;word-break:break-all}
+.isval.a{color:var(--accent)}.isval.b{color:var(--accent2)}.isval.w{color:var(--warm)}.isval.g{color:var(--green)}.isval.p{color:var(--purple)}
+.iact{padding:16px 24px;display:flex;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border)}
+.bregen{background:rgba(0,212,170,.1);border:1px solid rgba(0,212,170,.25);color:var(--accent);border-radius:8px;padding:8px 18px;font-size:13px;font-weight:600;cursor:pointer;font-family:'Syne',sans-serif;transition:all .2s}
+.bregen:hover{background:rgba(0,212,170,.18)}
+.breset{background:var(--s2);border:1px solid var(--border2);color:var(--muted);border-radius:8px;padding:8px 16px;font-size:13px;cursor:pointer;font-family:'Syne',sans-serif;transition:all .2s}
+.breset:hover{color:var(--text);border-color:var(--dim)}
+/* insights panel */
+.insights{display:none;margin-bottom:20px;gap:10px;flex-direction:column}
+.insights.on{display:flex;animation:fu .3s ease}
+.insight{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;border-radius:8px;font-size:12px;font-family:'JetBrains Mono',monospace;line-height:1.6}
+.insight.warn{background:rgba(255,159,67,.06);border:1px solid rgba(255,159,67,.2);color:var(--warm)}
+.insight.info{background:rgba(0,168,255,.06);border:1px solid rgba(0,168,255,.18);color:var(--accent2)}
+.insight.good{background:rgba(68,229,128,.06);border:1px solid rgba(68,229,128,.18);color:var(--green)}
+.insight.crit{background:rgba(255,95,95,.06);border:1px solid rgba(255,95,95,.2);color:var(--red)}
+.iic{font-size:14px;margin-top:1px}
+/* output */
+.owrap{display:none}
+.owrap.on{display:block;animation:fu .4s ease}
+.tabrow{display:flex;gap:4px;border-bottom:1px solid var(--border)}
+.tab{padding:10px 18px;font-size:12px;font-weight:600;font-family:'JetBrains Mono',monospace;color:var(--muted);cursor:pointer;border-radius:8px 8px 0 0;border:1px solid transparent;border-bottom:none;transition:all .2s;position:relative;top:1px;display:flex;align-items:center;gap:6px}
+.tab:hover{color:var(--text);background:var(--s2)}
+.tab.on{color:var(--accent);background:var(--s1);border-color:var(--border);border-bottom-color:var(--s1)}
+.tcontent{background:var(--s1);border:1px solid var(--border);border-top:none;border-radius:0 0 var(--r) var(--r)}
+.tpanel{display:none}
+.tpanel.on{display:block}
+.cbar{display:flex;align-items:center;justify-content:space-between;padding:11px 18px;border-bottom:1px solid var(--border);background:var(--s2)}
+.cfn{font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.dot{width:8px;height:8px;border-radius:50%}
+.dt-t{background:var(--accent);box-shadow:0 0 6px var(--accent)}
+.dt-g{background:var(--green);box-shadow:0 0 6px var(--green)}
+.dt-w{background:var(--warm);box-shadow:0 0 6px var(--warm)}
+.dt-b{background:var(--accent2);box-shadow:0 0 6px var(--accent2)}
+.dt-p{background:var(--purple);box-shadow:0 0 6px var(--purple)}
+.cacts{display:flex;gap:7px}
+.bcopy,.bdl{display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;font-family:'Syne',sans-serif;transition:all .2s;border:1px solid}
+.bcopy{background:rgba(0,168,255,.08);border-color:rgba(0,168,255,.2);color:var(--accent2)}
+.bcopy:hover{background:rgba(0,168,255,.16)}
+.bcopy.ok{color:var(--green);border-color:rgba(68,229,128,.3);background:rgba(68,229,128,.08)}
+.bdl{background:rgba(0,212,170,.08);border-color:rgba(0,212,170,.2);color:var(--accent)}
+.bdl:hover{background:rgba(0,212,170,.16)}
+.cbody{overflow-x:auto;max-height:560px;overflow-y:auto}
+.cbody pre{margin:0!important;padding:20px!important;background:transparent!important;font-family:'JetBrains Mono',monospace!important;font-size:12.5px!important;line-height:1.75!important}
+.cbody code{font-size:12.5px!important}
+.dlbar{display:none;gap:10px;margin-top:20px;flex-wrap:wrap}
+.dlbar.on{display:flex;animation:fu .3s ease}
+.bdlall{background:linear-gradient(135deg,rgba(0,212,170,.2),rgba(0,168,255,.12));border:1px solid rgba(0,212,170,.4);color:var(--accent);border-radius:10px;padding:12px 26px;font-size:14px;font-weight:700;cursor:pointer;font-family:'Syne',sans-serif;transition:all .2s;display:flex;align-items:center;gap:8px}
+.bdlall:hover{background:linear-gradient(135deg,rgba(0,212,170,.3),rgba(0,168,255,.2));box-shadow:0 0 28px rgba(0,212,170,.18)}
+.toast{position:fixed;bottom:24px;right:24px;z-index:200;background:var(--s2);border:1px solid var(--border2);border-radius:10px;padding:12px 18px;font-size:13px;display:flex;align-items:center;gap:8px;box-shadow:0 8px 40px rgba(0,0,0,.5);transform:translateY(70px);opacity:0;transition:all .3s ease}
+.toast.show{transform:translateY(0);opacity:1}
+.toast.suc{border-color:rgba(68,229,128,.35)}.toast.err{border-color:rgba(255,95,95,.35)}
+.spin{width:13px;height:13px;border:2px solid rgba(0,212,170,.2);border-top-color:var(--accent);border-radius:50%;animation:rot .6s linear infinite;display:inline-block}
+@keyframes rot{to{transform:rotate(360deg)}}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--s1)}
+::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 </style>
 </head>
 <body>
-
-<!-- HEADER -->
 <header>
   <div class="logo">
-    <span class="logo-icon">🐳</span>
-    <div>
-      <div class="logo-text">Captain Container</div>
-      <div class="logo-sub">Containerization Engine</div>
-    </div>
+    <span class="lw">🐳</span>
+    <div><div class="ln">Captain Container</div><div class="lt">Intelligent Containerization Engine v3</div></div>
   </div>
-  <span class="badge">v1.0 · Local App</span>
+  <div class="hbadge"><span class="hdot"></span><span class="htxt">100% LOCAL · ZERO CLOUD</span></div>
 </header>
 
-<!-- MAIN -->
 <main>
-
-  <!-- API KEY BANNER -->
-  <div class="api-banner">
-    <span class="spark">✨</span>
-    <div>
-      <strong>AI-Powered Mode</strong> — Add your Anthropic API key for smarter, context-aware generation
-      <span style="color:var(--dim);font-size:11px;display:block;margin-top:2px;">Without key: uses smart local templates &nbsp;|&nbsp; With key: Claude AI analyses your actual code</span>
-    </div>
-    <div class="api-banner-right">
-      <input class="api-input" id="apiKeyInput" type="password" placeholder="sk-ant-api03-..." />
-      <button class="btn-save-key" onclick="saveApiKey()">Save Key</button>
-      <span class="key-status" id="keyStatus">No key saved</span>
+  <div class="dropzone" id="dz">
+    <span class="di">📦</span>
+    <div class="dt">Drop your project ZIP here</div>
+    <div class="ds">Reads source code · Detects ports from code · Finds native deps · Parses Procfile<br>Scans for secrets · Detects workers · Identifies Alpine compatibility · Generates perfect files</div>
+    <button class="dcta" onclick="document.getElementById('fi').click()">📂 Browse Files</button>
+    <div class="dfmt">
+      <span class="fb">.zip only</span>
+      <span class="fb">any size</span>
+      <span class="fb">runs locally</span>
+      <span class="fb">reads source code</span>
     </div>
   </div>
+  <input type="file" id="fi" accept=".zip"/>
+  <div class="srow">
+    <span class="stk">🟢 Node.js</span><span class="stk">⚡ Bun/Deno</span><span class="stk">🐍 Python</span>
+    <span class="stk">☕ Java</span><span class="stk">🐹 Go</span><span class="stk">🐘 PHP</span>
+    <span class="stk">💎 Ruby</span><span class="stk">🦀 Rust</span><span class="stk">🔷 .NET</span>
+    <span class="stk">💻 C/C++</span><span class="stk">🌐 Static</span><span class="stk">+ more</span>
+  </div>
 
-  <!-- DROP ZONE -->
-  <div class="drop-section">
-    <div class="drop-zone" id="dropZone">
-      <span class="drop-icon">📦</span>
-      <div class="drop-title">Drop your project ZIP here</div>
-      <div class="drop-sub">Captain Container will scan it and generate production-ready Docker files</div>
-      <div class="drop-hint">
-        <span>📁</span> Only .zip files · Any project size
+  <div class="scanpanel" id="sp">
+    <div class="stop">
+      <span class="spin" id="spspin"></span>
+      <span class="stitle" id="sptitle">Scanning…</span>
+      <span class="scnt" id="spcnt">0 files</span>
+    </div>
+    <div class="bw"><div class="bf" id="bfill"></div></div>
+    <div class="slog" id="slog"></div>
+  </div>
+
+  <div class="icard" id="ic">
+    <div class="ih">
+      <div class="ileft">
+        <div class="iico" id="ico">📦</div>
+        <div><div class="inam" id="inam">—</div><div class="isub" id="isub">—</div></div>
       </div>
-      <br/>
-      <button class="btn-browse" onclick="document.getElementById('fileInput').click()">
-        Browse Files
-      </button>
-      <input type="file" id="fileInput" accept=".zip" />
+      <div class="ipills" id="iplls"></div>
     </div>
-
-    <!-- Supported stacks -->
-    <div class="stacks-row">
-      <span class="stack-tag">🟢 Node.js</span>
-      <span class="stack-tag">🐍 Python</span>
-      <span class="stack-tag">☕ Java</span>
-      <span class="stack-tag">🐹 Go</span>
-      <span class="stack-tag">🐘 PHP</span>
-      <span class="stack-tag">💎 Ruby</span>
-      <span class="stack-tag">🦀 Rust</span>
-      <span class="stack-tag">🔷 .NET</span>
-      <span class="stack-tag">+ more</span>
+    <div class="ibody" id="ibody"></div>
+    <div class="iact">
+      <button class="bregen" onclick="regen()">⟳ Regenerate</button>
+      <button class="breset" onclick="resetAll()">↺ New Project</button>
     </div>
   </div>
 
-  <!-- SCANNING PANEL -->
-  <div class="scanning-panel" id="scanningPanel">
-    <div class="scan-header">
-      <span class="spinner" id="scanSpinner"></span>
-      <span class="scan-title" id="scanTitle">Scanning project…</span>
-      <span class="scan-badge" id="scanBadge">0 files</span>
-    </div>
-    <div class="scan-progress-bar">
-      <div class="scan-progress-fill" id="progressFill"></div>
-    </div>
-    <div class="scan-log" id="scanLog"></div>
-  </div>
+  <div class="insights" id="insightsBox"></div>
 
-  <!-- DETECTED STACK CARD -->
-  <div class="stack-card" id="stackCard">
-    <div class="stack-icon" id="stackIcon">📦</div>
-    <div class="stack-info">
-      <div class="stack-name" id="stackName">—</div>
-      <div class="stack-meta" id="stackMeta">—</div>
-      <br/>
-      <div class="stack-pills" id="stackPills"></div>
+  <div class="owrap" id="ow">
+    <div class="tabrow">
+      <div class="tab on"  onclick="tab('df')">🐳 Dockerfile</div>
+      <div class="tab"     onclick="tab('dc')">⚙️ compose.yml</div>
+      <div class="tab"     onclick="tab('di')">🚫 .dockerignore</div>
+      <div class="tab"     onclick="tab('ev')">🔑 .env.example</div>
+      <div class="tab"     onclick="tab('mk')">⚡ Makefile</div>
     </div>
-    <button class="btn-regen" onclick="regenerate()">⟳ Re-generate</button>
-  </div>
-
-  <!-- OUTPUT -->
-  <div class="output-section" id="outputSection">
-    <div class="tab-bar">
-      <div class="tab active" onclick="switchTab('dockerfile')">🐳 Dockerfile</div>
-      <div class="tab" onclick="switchTab('compose')">⚙️ docker-compose.yml</div>
-      <div class="tab" onclick="switchTab('ignore')">🚫 .dockerignore</div>
-    </div>
-
-    <div class="tab-content">
-      <!-- Dockerfile -->
-      <div class="tab-panel active" id="tab-dockerfile">
-        <div class="code-header">
-          <div class="code-filename"><span class="dot"></span> Dockerfile</div>
-          <div class="code-actions">
-            <button class="btn-copy" onclick="copyCode('dockerfileCode', this)">📋 Copy</button>
-            <button class="btn-dl" onclick="downloadFile('Dockerfile', 'dockerfileCode')">⬇ Download</button>
-          </div>
-        </div>
-        <div class="code-body">
-          <pre><code class="language-docker" id="dockerfileCode"></code></pre>
-        </div>
+    <div class="tcontent">
+      <div class="tpanel on" id="tp-df">
+        <div class="cbar"><div class="cfn"><span class="dot dt-t"></span>Dockerfile</div>
+        <div class="cacts"><button class="bcopy" onclick="cp('o-df',this)">📋 Copy</button><button class="bdl" onclick="dl('Dockerfile','o-df')">⬇ Save</button></div></div>
+        <div class="cbody"><pre><code class="language-docker" id="o-df"></code></pre></div>
       </div>
-
-      <!-- docker-compose -->
-      <div class="tab-panel" id="tab-compose">
-        <div class="code-header">
-          <div class="code-filename"><span class="dot" style="background:var(--green);box-shadow:0 0 6px var(--green)"></span> docker-compose.yml</div>
-          <div class="code-actions">
-            <button class="btn-copy" onclick="copyCode('composeCode', this)">📋 Copy</button>
-            <button class="btn-dl" onclick="downloadFile('docker-compose.yml', 'composeCode')">⬇ Download</button>
-          </div>
-        </div>
-        <div class="code-body">
-          <pre><code class="language-yaml" id="composeCode"></code></pre>
-        </div>
+      <div class="tpanel" id="tp-dc">
+        <div class="cbar"><div class="cfn"><span class="dot dt-g"></span>docker-compose.yml</div>
+        <div class="cacts"><button class="bcopy" onclick="cp('o-dc',this)">📋 Copy</button><button class="bdl" onclick="dl('docker-compose.yml','o-dc')">⬇ Save</button></div></div>
+        <div class="cbody"><pre><code class="language-yaml" id="o-dc"></code></pre></div>
       </div>
-
-      <!-- .dockerignore -->
-      <div class="tab-panel" id="tab-ignore">
-        <div class="code-header">
-          <div class="code-filename"><span class="dot" style="background:var(--yellow);box-shadow:0 0 6px var(--yellow)"></span> .dockerignore</div>
-          <div class="code-actions">
-            <button class="btn-copy" onclick="copyCode('ignoreCode', this)">📋 Copy</button>
-            <button class="btn-dl" onclick="downloadFile('.dockerignore', 'ignoreCode')">⬇ Download</button>
-          </div>
-        </div>
-        <div class="code-body">
-          <pre><code id="ignoreCode" style="font-family:'JetBrains Mono',monospace"></code></pre>
-        </div>
+      <div class="tpanel" id="tp-di">
+        <div class="cbar"><div class="cfn"><span class="dot dt-w"></span>.dockerignore</div>
+        <div class="cacts"><button class="bcopy" onclick="cp('o-di',this)">📋 Copy</button><button class="bdl" onclick="dl('.dockerignore','o-di')">⬇ Save</button></div></div>
+        <div class="cbody"><pre><code id="o-di" style="font-family:'JetBrains Mono',monospace;font-size:12.5px"></code></pre></div>
+      </div>
+      <div class="tpanel" id="tp-ev">
+        <div class="cbar"><div class="cfn"><span class="dot dt-b"></span>.env.example</div>
+        <div class="cacts"><button class="bcopy" onclick="cp('o-ev',this)">📋 Copy</button><button class="bdl" onclick="dl('.env.example','o-ev')">⬇ Save</button></div></div>
+        <div class="cbody"><pre><code id="o-ev" style="font-family:'JetBrains Mono',monospace;font-size:12.5px"></code></pre></div>
+      </div>
+      <div class="tpanel" id="tp-mk">
+        <div class="cbar"><div class="cfn"><span class="dot dt-p"></span>Makefile</div>
+        <div class="cacts"><button class="bcopy" onclick="cp('o-mk',this)">📋 Copy</button><button class="bdl" onclick="dl('Makefile','o-mk')">⬇ Save</button></div></div>
+        <div class="cbody"><pre><code id="o-mk" style="font-family:'JetBrains Mono',monospace;font-size:12.5px"></code></pre></div>
       </div>
     </div>
   </div>
 
-  <!-- BOTTOM ACTIONS -->
-  <div class="bottom-actions" id="bottomActions">
-    <button class="btn-dl-all" onclick="downloadAll()">⬇ Download All Files</button>
-    <button class="btn-reset" onclick="resetApp()">↺ Scan Another Project</button>
+  <div class="dlbar" id="dlbar">
+    <button class="bdlall" onclick="dlAll()">⬇ Download All 5 Files as ZIP</button>
+    <button class="breset" onclick="resetAll()">↺ Scan Another Project</button>
   </div>
-
 </main>
-
-<!-- TOAST -->
 <div class="toast" id="toast"></div>
 
 <script>
 /* ═══════════════════════════════════════════════════════════
-   CAPTAIN CONTAINER — Core Logic
+   CAPTAIN CONTAINER v3 — EXTREME LOCAL INTELLIGENCE ENGINE
+   100% offline · No API · No cloud · Reads your source code
    ═══════════════════════════════════════════════════════════ */
+let G = {};
 
-/* ── State ── */
-let detectedStack = {};
-let generatedFiles = {};
-let apiKey = localStorage.getItem('cc_apikey') || '';
-
-/* ── On load ── */
 window.addEventListener('DOMContentLoaded', () => {
-  if (apiKey) {
-    document.getElementById('apiKeyInput').value = apiKey;
-    updateKeyStatus(true);
-  }
-  setupDragDrop();
-  document.getElementById('fileInput').addEventListener('change', e => {
-    if (e.target.files[0]) handleZip(e.target.files[0]);
+  const dz = document.getElementById('dz');
+  ['dragenter','dragover'].forEach(e => dz.addEventListener(e, ev => { ev.preventDefault(); dz.classList.add('over'); }));
+  ['dragleave','dragend'].forEach(e => dz.addEventListener(e, () => dz.classList.remove('over')));
+  dz.addEventListener('drop', ev => {
+    ev.preventDefault(); dz.classList.remove('over');
+    const f = ev.dataTransfer.files[0];
+    if (!f) return;
+    if (!f.name.endsWith('.zip')) { showToast('Drop a .zip file','err'); return; }
+    run(f);
   });
+  document.getElementById('fi').addEventListener('change', e => { if (e.target.files[0]) run(e.target.files[0]); });
 });
 
-/* ── API Key ── */
-function saveApiKey() {
-  const val = document.getElementById('apiKeyInput').value.trim();
-  if (!val.startsWith('sk-ant')) {
-    showToast('⚠ That doesn\'t look like an Anthropic key', 'error'); return;
-  }
-  apiKey = val;
-  localStorage.setItem('cc_apikey', val);
-  updateKeyStatus(true);
-  showToast('✔ API key saved', 'success');
-}
-function updateKeyStatus(ok) {
-  const el = document.getElementById('keyStatus');
-  el.textContent = ok ? '✔ Key saved' : 'No key saved';
-  el.className = 'key-status' + (ok ? ' ok' : '');
-}
-
-/* ── Drag & Drop ── */
-function setupDragDrop() {
-  const zone = document.getElementById('dropZone');
-  ['dragenter','dragover'].forEach(e => zone.addEventListener(e, ev => {
-    ev.preventDefault(); zone.classList.add('dragging');
-  }));
-  ['dragleave','dragend'].forEach(e => zone.addEventListener(e, () => {
-    zone.classList.remove('dragging');
-  }));
-  zone.addEventListener('drop', ev => {
-    ev.preventDefault();
-    zone.classList.remove('dragging');
-    const file = ev.dataTransfer.files[0];
-    if (!file) return;
-    if (!file.name.endsWith('.zip')) {
-      showToast('⚠ Please drop a .zip file', 'error'); return;
-    }
-    handleZip(file);
-  });
-}
-
-/* ── ZIP Handler ── */
-async function handleZip(file) {
-  resetOutput();
-  showScanPanel(true);
-
-  addLog('info', '📦', `Reading <span class="text">${file.name}</span> <span class="dim">(${formatSize(file.size)})</span>`);
-  setProgress(10);
+/* ── MAIN PIPELINE ─────────────────────────────────────── */
+async function run(file) {
+  reset();
+  show('sp');
+  slog('inf','📦',`<span class="txt">${file.name}</span> <span class="dm">${fmtSz(file.size)}</span>`);
+  prog(6);
 
   let zip;
-  try {
-    zip = await JSZip.loadAsync(file);
-  } catch(e) {
-    addLog('warn', '✖', `Failed to read ZIP: ${e.message}`);
-    showToast('Failed to read ZIP file', 'error'); return;
-  }
+  try { zip = await JSZip.loadAsync(file); }
+  catch(e) { slog('wrn','✖','Cannot read zip: '+e.message); return; }
 
-  // Collect all files
   const entries = [];
-  zip.forEach((path, entry) => { if (!entry.dir) entries.push({ path, entry }); });
+  zip.forEach((p, e) => { if (!e.dir) entries.push({p, e}); });
+  document.getElementById('spcnt').textContent = entries.length+' files';
+  slog('ok','✔',`<span class="txt">${entries.length} files</span> found`);
+  prog(12);
 
-  document.getElementById('scanBadge').textContent = `${entries.length} files`;
-  addLog('ok', '✔', `Found <span class="text">${entries.length} files</span>`);
-  setProgress(25);
+  /* ── read ALL relevant files ── */
+  const C = {};  // filename → content
 
-  // Read key files
-  const keyContents = {};
-  const keyFiles = [
-    'package.json','requirements.txt','Pipfile','pyproject.toml',
-    'pom.xml','build.gradle','go.mod','go.sum',
-    'composer.json','Gemfile','Cargo.toml',
-    'Dockerfile','docker-compose.yml',
+  // Priority 1: config/manifest files
+  const CONFIGS = [
+    'package.json','package-lock.json','yarn.lock','pnpm-lock.yaml','bun.lockb','bunfig.toml',
+    'requirements.txt','Pipfile','Pipfile.lock','pyproject.toml','setup.py','setup.cfg','poetry.lock',
+    'pom.xml','build.gradle','build.gradle.kts','settings.gradle','gradle.properties','gradle-wrapper.properties',
+    'go.mod','go.sum','go.work',
+    'composer.json','composer.lock',
+    'Gemfile','Gemfile.lock','.ruby-version',
+    'Cargo.toml','Cargo.lock',
+    'deno.json','deno.jsonc','deno.lock',
+    'Procfile',
+    '.nvmrc','.node-version','.tool-versions',
+    '.python-version','runtime.txt',
+    'tsconfig.json','jsconfig.json',
+    'next.config.js','next.config.ts','next.config.mjs',
+    'nuxt.config.js','nuxt.config.ts',
+    'vite.config.js','vite.config.ts','vite.config.mjs',
+    'webpack.config.js','rollup.config.js',
+    'angular.json',
+    'svelte.config.js','svelte.config.ts',
+    'astro.config.mjs','astro.config.ts',
+    'remix.config.js',
+    'nest-cli.json',
+    'turbo.json','nx.json','lerna.json',
+    'manage.py','wsgi.py','asgi.py',
+    'application.properties','application.yml','application.yaml',
+    'nginx.conf','nginx.conf.example','default.conf',
+    'supervisord.conf','supervisor.conf',
+    'Makefile','makefile','GNUmakefile',
+    'fly.toml','railway.toml','render.yaml','vercel.json','netlify.toml','heroku.yml',
+    '.env','.env.example','.env.sample','.env.local','.env.production','.env.defaults',
+    '.gitignore',
+    'Dockerfile','docker-compose.yml','docker-compose.yaml','.dockerignore',
+    'CMakeLists.txt',
   ];
-  const csprojFiles = entries.filter(e => e.path.endsWith('.csproj') || e.path.endsWith('.fsproj'));
 
-  for (const { path, entry } of entries) {
-    const base = path.split('/').pop();
-    if (keyFiles.includes(base) || csprojFiles.find(e => e.path === path)) {
+  // Priority 2: main entry-point source files (for port scanning)
+  const SOURCES = [
+    'app.py','main.py','server.py','run.py','app/__init__.py','application.py',
+    'index.js','server.js','app.js','main.js','src/index.js','src/server.js','src/app.js',
+    'index.ts','server.ts','app.ts','src/index.ts','src/main.ts',
+    'main.go','cmd/main.go','cmd/server/main.go',
+    'src/main.rs','src/lib.rs',
+    'app.rb','config.ru','lib/app.rb',
+    'Program.cs','Startup.cs','Program.fs',
+    'main.c','main.cpp','src/main.cpp',
+    'artisan',   // Laravel
+    'bin/www',   // Express generator
+  ];
+
+  slog('inf','📂','Reading config files…');
+  for (const {p, e} of entries) {
+    const base = p.split('/').pop();
+    const fullPath = p.replace(/^[^/]+\//,''); // strip top-level dir
+    if (CONFIGS.includes(base) || CONFIGS.includes(fullPath)) {
+      try { C[base] = await e.async('string'); } catch(_) {}
+    }
+  }
+  prog(28);
+
+  slog('src','🔬','Scanning source files for port bindings…');
+  for (const {p, e} of entries) {
+    const base = p.split('/').pop();
+    const stripped = p.replace(/^[^/]+\//,'');
+    if (SOURCES.includes(base) || SOURCES.includes(stripped)) {
       try {
-        keyContents[base] = await entry.async('string');
-        addLog('info', '→', `Reading <span class="text">${base}</span>`);
+        const src = await e.async('string');
+        C[`__src__${base}`] = src.slice(0,8000); // first 8k chars is enough
       } catch(_) {}
     }
   }
-  setProgress(50);
+  prog(42);
 
-  // Detect stack
-  addLog('info', '🔍', 'Detecting tech stack…');
-  const stack = detectStack(entries.map(e => e.path), keyContents);
-  detectedStack = stack;
-  setProgress(70);
+  const paths = entries.map(e => e.p);
+  slog('det','🧠','Running deep intelligence analysis…');
+  G = analyse(paths, C);
+  prog(72);
 
-  addLog('ok', '✔', `Detected: <span class="text">${stack.display}</span>`);
-  if (stack.framework) addLog('info', '→', `Framework: <span class="text">${stack.framework}</span>`);
-  addLog('info', '→', `Port: <span class="text">${stack.port}</span> &nbsp;|&nbsp; Start: <span class="text">${stack.startCmd}</span>`);
+  slog('ok','✔',`Stack: <span class="txt">${G.display}${G.framework?' · '+G.framework:''}</span>`);
+  if (G.pkgMgr)       slog('inf','→',`Package manager: <span class="txt">${G.pkgMgr}</span>`);
+  if (G.langVer)      slog('inf','→',`Runtime: <span class="txt">${G.langVer}</span>`);
+  if (G.portSource)   slog('src','📍',`Port <span class="txt">${G.port}</span> found in <span class="txt">${G.portSource}</span>`);
+  if (G.procfileCmd)  slog('src','📄',`Procfile web: <span class="txt">${G.procfileCmd}</span>`);
+  if (G.dbs.length)   slog('inf','🗄',`Databases: <span class="txt">${G.dbs.join(', ')}</span>`);
+  if (G.needsAlpineWarn) slog('wrn','⚠',`<span class="txt">Alpine incompatibility</span> — switching to slim`);
+  if (G.hasSysDeps)   slog('wrn','📦',`Native deps: <span class="txt">${G.sysDeps.join(', ')}</span>`);
+  prog(86);
 
-  setProgress(85);
+  slog('det','📝','Generating optimised files…');
+  G.dockerfile = mkDockerfile(G);
+  G.compose    = mkCompose(G);
+  G.ignore     = mkIgnore(G);
+  G.envex      = mkEnvExample(G);
+  G.makefile   = mkMakefile(G);
+  prog(100);
 
-  // Generate files
-  if (apiKey) {
-    addLog('ai', '✨', 'Using Claude AI for enhanced generation…');
-    document.getElementById('scanTitle').textContent = 'Claude is generating your files…';
-    try {
-      await generateWithAI(stack, keyContents, entries.map(e => e.path));
-    } catch(e) {
-      addLog('warn', '⚠', `AI failed (${e.message}), using local templates`);
-      generateLocally(stack);
-    }
-  } else {
-    addLog('info', '📝', 'Generating Docker files from smart templates…');
-    generateLocally(stack);
-  }
+  document.getElementById('sptitle').textContent = '✔ Analysis complete';
+  document.getElementById('spspin').style.display='none';
 
-  setProgress(100);
-  document.getElementById('scanTitle').textContent = 'Scan complete!';
-  document.getElementById('scanSpinner').style.display = 'none';
-
-  showStackCard(stack);
-  showOutput();
+  renderCard(G);
+  renderInsights(G);
+  renderOutput(G);
 }
 
 /* ═══════════════════════════════════════════════════════════
-   STACK DETECTION
+   🧠 DEEP INTELLIGENCE ANALYSIS ENGINE
    ═══════════════════════════════════════════════════════════ */
-function detectStack(filePaths, contents) {
-  const files = filePaths.map(p => p.split('/').pop().toLowerCase());
-  const hasFile = name => files.some(f => f === name.toLowerCase());
-  const hasExt  = ext  => filePaths.some(p => p.endsWith(ext));
-
-  let stack = 'generic', display = 'Generic App', icon = '📦';
-  let port = '8080', startCmd = './start.sh', buildCmd = '', framework = '';
-  let baseImage = 'debian:12-slim';
-
-  if (hasFile('package.json')) {
-    stack = 'node'; display = 'Node.js'; icon = '🟢';
-    port = '3000'; startCmd = 'node index.js'; buildCmd = 'npm ci';
-    baseImage = 'node:20-alpine';
-    try {
-      const pkg = JSON.parse(contents['package.json'] || '{}');
-      const scripts = pkg.scripts || {};
-      if (scripts.start)  startCmd = 'npm start';
-      if (scripts.serve)  startCmd = 'npm run serve';
-      if (scripts.dev && !scripts.start) startCmd = 'npm run dev';
-      // Detect framework
-      const deps = { ...pkg.dependencies, ...pkg.devDependencies };
-      if (deps.next)    { framework = 'Next.js';  port = '3000'; startCmd = 'npm start'; }
-      else if (deps.nuxt)    { framework = 'Nuxt.js';   port = '3000'; }
-      else if (deps.react)   { framework = 'React';     port = '3000'; }
-      else if (deps.vue)     { framework = 'Vue.js';    port = '8080'; }
-      else if (deps.express) { framework = 'Express.js'; port = '3000'; }
-      else if (deps.fastify) { framework = 'Fastify';   port = '3000'; }
-      else if (deps.koa)     { framework = 'Koa.js';    port = '3000'; }
-      const engines = pkg.engines || {};
-      if (engines.node) {
-        const ver = engines.node.replace(/[^0-9.]/g, '').split('.')[0];
-        if (ver) baseImage = `node:${ver}-alpine`;
-      }
-    } catch(_) {}
-  }
-  else if (hasFile('requirements.txt') || hasFile('pipfile') || hasFile('pyproject.toml')) {
-    stack = 'python'; display = 'Python'; icon = '🐍';
-    port = '5000'; startCmd = 'python app.py'; buildCmd = 'pip install -r requirements.txt';
-    baseImage = 'python:3.12-slim';
-    const req = (contents['requirements.txt'] || '').toLowerCase();
-    if      (req.includes('fastapi') || req.includes('uvicorn'))
-      { framework = 'FastAPI'; port = '8000'; startCmd = 'uvicorn main:app --host 0.0.0.0 --port 8000'; }
-    else if (req.includes('flask'))
-      { framework = 'Flask';   port = '5000'; startCmd = 'flask run --host=0.0.0.0 --port=5000'; }
-    else if (req.includes('django'))
-      { framework = 'Django';  port = '8000'; startCmd = 'python manage.py runserver 0.0.0.0:8000'; }
-    else if (req.includes('gunicorn'))
-      { framework = 'Gunicorn'; port = '8000'; startCmd = 'gunicorn -b 0.0.0.0:8000 app:app'; }
-    else if (req.includes('tornado'))
-      { framework = 'Tornado'; port = '8888'; }
-    else if (req.includes('aiohttp'))
-      { framework = 'aiohttp'; port = '8080'; }
-  }
-  else if (hasFile('pom.xml') || hasFile('build.gradle')) {
-    stack = 'java'; display = 'Java'; icon = '☕';
-    port = '8080'; startCmd = 'java -jar app.jar';
-    buildCmd = hasFile('pom.xml') ? 'mvn clean package -DskipTests' : 'gradle build -x test';
-    baseImage = 'eclipse-temurin:21-jre-alpine';
-    const pom = contents['pom.xml'] || '';
-    if (pom.includes('spring-boot')) { framework = 'Spring Boot'; }
-    if (pom.includes('quarkus'))     { framework = 'Quarkus'; }
-    if (pom.includes('micronaut'))   { framework = 'Micronaut'; }
-  }
-  else if (hasFile('go.mod')) {
-    stack = 'go'; display = 'Go'; icon = '🐹';
-    port = '8080'; startCmd = './app'; buildCmd = 'go build -o app .';
-    baseImage = 'golang:1.22-alpine';
-    const mod = contents['go.mod'] || '';
-    if (mod.includes('gin'))   framework = 'Gin';
-    if (mod.includes('fiber')) framework = 'Fiber';
-    if (mod.includes('echo'))  framework = 'Echo';
-    if (mod.includes('chi'))   framework = 'Chi';
-  }
-  else if (hasFile('composer.json')) {
-    stack = 'php'; display = 'PHP'; icon = '🐘';
-    port = '80'; startCmd = 'php-fpm'; buildCmd = 'composer install --no-dev';
-    baseImage = 'php:8.3-fpm-alpine';
-    const comp = contents['composer.json'] || '';
-    if (comp.includes('laravel'))   framework = 'Laravel';
-    if (comp.includes('symfony'))   framework = 'Symfony';
-    if (comp.includes('slim'))      framework = 'Slim';
-  }
-  else if (hasFile('gemfile')) {
-    stack = 'ruby'; display = 'Ruby'; icon = '💎';
-    port = '3000'; startCmd = 'ruby app.rb'; buildCmd = 'bundle install';
-    baseImage = 'ruby:3.3-alpine';
-    const gem = contents['Gemfile'] || '';
-    if (gem.includes('rails'))   { framework = 'Rails'; port = '3000'; startCmd = 'rails server -b 0.0.0.0'; }
-    if (gem.includes('sinatra')) { framework = 'Sinatra'; }
-  }
-  else if (hasFile('cargo.toml')) {
-    stack = 'rust'; display = 'Rust'; icon = '🦀';
-    port = '8080'; startCmd = './app'; buildCmd = 'cargo build --release';
-    baseImage = 'rust:1.77-alpine';
-    const cargo = contents['Cargo.toml'] || '';
-    if (cargo.includes('actix'))  framework = 'Actix-web';
-    if (cargo.includes('axum'))   framework = 'Axum';
-    if (cargo.includes('rocket')) framework = 'Rocket';
-  }
-  else if (hasExt('.csproj') || hasExt('.fsproj')) {
-    stack = 'dotnet'; display = '.NET'; icon = '🔷';
-    port = '8080'; startCmd = 'dotnet app.dll'; buildCmd = 'dotnet publish -c Release -o /app/publish';
-    baseImage = 'mcr.microsoft.com/dotnet/aspnet:8.0';
-    framework = 'ASP.NET Core';
-  }
-
-  return { stack, display, icon, port, startCmd, buildCmd, baseImage, framework };
-}
-
-/* ═══════════════════════════════════════════════════════════
-   LOCAL TEMPLATE GENERATION
-   ═══════════════════════════════════════════════════════════ */
-function generateLocally(s) {
-  generatedFiles.dockerfile = buildDockerfile(s);
-  generatedFiles.compose    = buildCompose(s);
-  generatedFiles.ignore     = buildIgnore(s);
-  populateOutput();
-}
-
-function buildDockerfile(s) {
-  const multi = ['node','go','java','rust','dotnet'].includes(s.stack) && s.buildCmd;
-  const lines = [
-    `# ─────────────────────────────────────────────`,
-    `#  Dockerfile`,
-    `#  Stack : ${s.display}${s.framework ? ' · ' + s.framework : ''}`,
-    `#  Port  : ${s.port}`,
-    `# ─────────────────────────────────────────────`,
-    '',
-  ];
-
-  const BUILD_IMAGES = {
-    node:   'node:20-alpine',
-    python: 'python:3.12-slim',
-    java:   'eclipse-temurin:21-jdk-alpine',
-    go:     'golang:1.22-alpine',
-    php:    'php:8.3-fpm-alpine',
-    ruby:   'ruby:3.3-alpine',
-    rust:   'rust:1.77-alpine',
-    dotnet: 'mcr.microsoft.com/dotnet/sdk:8.0',
-    generic:'debian:12-slim',
+function analyse(paths, C) {
+  const R = {
+    stack:'generic', display:'Generic App', icon:'📦',
+    port:'8080', portSource:'', ports:[],
+    startCmd:'./start.sh', buildCmd:'',
+    baseImg:'debian:12-slim', buildImg:'debian:12-slim',
+    framework:'', pkgMgr:'', langVer:'', langMaj:'',
+    isMulti:false, isStatic:false, isTS:false,
+    isMonorepo:false, isWorker:false, hasWorker:false,
+    dbs:[], cache:[], queues:[], services:[],
+    sysDeps:[], needsAlpineWarn:false, useAlpine:true,
+    envVars:[], envVals:{},
+    hasNginx:false, hasSupervisor:false,
+    procfileCmd:'', procfileWorker:'',
+    hasMakefile:false, hasExistingDockerfile:false,
+    javaType:'maven', workers:[],
+    healthPath:'/health', healthStart:15,
+    memLimit:'512m', cpuLimit:'0.5',
+    needsGit:false, needsSSH:false,
+    needsDB:false, useDistroless:false,
+    nodeOptions:'', jvmFlags:'',
+    ociLabels:{}, signals:'SIGTERM',
+    volumes:[],
+    insights:[],
+    warnings:[],
+    suggestions:[],
   };
-  const buildImg = BUILD_IMAGES[s.stack] || 'debian:12-slim';
 
-  if (multi) {
-    lines.push(`FROM ${buildImg} AS builder`);
-    lines.push(`WORKDIR /build`, '');
+  const hf = n => paths.some(p => p.split('/').pop() === n);
+  const hfe = x => paths.some(p => p.endsWith(x));
+  const src = k => Object.entries(C).filter(([k2])=>k2.startsWith('__src__')).map(([,v])=>v).join('\n');
+  const allSrc = src();
+  const has = (text,...terms) => terms.some(t => (text||'').toLowerCase().includes(t.toLowerCase()));
 
-    if (s.stack === 'node') {
-      lines.push(
-        '# Cache dependencies layer',
-        'COPY package*.json ./',
-        `RUN ${s.buildCmd}`,
-        'COPY . .', ''
-      );
-    } else if (s.stack === 'go') {
-      lines.push(
-        'COPY go.mod go.sum ./',
-        'RUN go mod download',
-        'COPY . .',
-        `RUN ${s.buildCmd}`, ''
-      );
-    } else if (s.stack === 'java') {
-      const isMaven = s.buildCmd.includes('mvn');
-      lines.push(
-        isMaven ? 'COPY pom.xml ./' : 'COPY build.gradle settings.gradle ./',
-        'COPY src ./src',
-        `RUN ${s.buildCmd}`, ''
-      );
-    } else if (s.stack === 'rust') {
-      lines.push(
-        'COPY Cargo.toml Cargo.lock ./',
-        'COPY src ./src',
-        `RUN ${s.buildCmd}`, ''
-      );
-    } else if (s.stack === 'dotnet') {
-      lines.push(
-        'COPY *.csproj ./',
-        'RUN dotnet restore',
-        'COPY . .',
-        `RUN ${s.buildCmd}`, ''
-      );
-    } else {
-      lines.push('COPY . .', `RUN ${s.buildCmd}`, '');
+  // ── Check existing Docker files ──────────────────────
+  R.hasExistingDockerfile = hf('Dockerfile');
+  if (R.hasExistingDockerfile) R.warnings.push('Existing Dockerfile will be replaced');
+  if (hf('docker-compose.yml') || hf('docker-compose.yaml')) R.warnings.push('Existing docker-compose.yml will be replaced');
+
+  // ── Procfile parsing ─────────────────────────────────
+  const procfile = C['Procfile'] || '';
+  if (procfile) {
+    const webLine = procfile.split('\n').find(l => l.startsWith('web:'));
+    if (webLine) R.procfileCmd = webLine.replace('web:','').trim();
+    const workerLine = procfile.split('\n').find(l => l.startsWith('worker:'));
+    if (workerLine) R.procfileWorker = workerLine.replace('worker:','').trim();
+  }
+
+  // ── .nvmrc / .tool-versions ──────────────────────────
+  const toolVer = (C['.tool-versions']||'');
+  const toolNode = (toolVer.match(/nodejs\s+(\d+)/) || [])[1] || '';
+  const nvmrc = (C['.nvmrc']||C['.node-version']||'').trim().replace('v','').split('.')[0] || toolNode;
+
+  // ── Makefile detection ───────────────────────────────
+  R.hasMakefile = hf('Makefile') || hf('makefile') || hf('GNUmakefile');
+
+  // ── Nginx conf ───────────────────────────────────────
+  R.hasNginx = hf('nginx.conf') || hf('default.conf');
+
+  // ── Supervisor ───────────────────────────────────────
+  R.hasSupervisor = hf('supervisord.conf') || hf('supervisor.conf');
+
+  /* ═════════ NODE.JS ════════════════════════════════════ */
+  if (hf('package.json')) {
+    R.stack='node'; R.display='Node.js'; R.icon='🟢';
+    R.port='3000'; R.startCmd='node index.js';
+
+    let pkg={}, pkgStr='';
+    try { pkg=JSON.parse(C['package.json']||'{}'); pkgStr=C['package.json']||''; } catch(_){}
+    const deps = {...(pkg.dependencies||{}), ...(pkg.devDependencies||{})};
+    const dStr = JSON.stringify(deps).toLowerCase();
+
+    // ── Package manager from lockfiles ──
+    if (hf('bun.lockb') || C['bunfig.toml'])  R.pkgMgr='bun';
+    else if (hf('pnpm-lock.yaml'))             R.pkgMgr='pnpm';
+    else if (hf('yarn.lock'))                  R.pkgMgr='yarn';
+    else                                        R.pkgMgr='npm';
+
+    // ── Node version (priority: .nvmrc > package.json engines > default) ──
+    const engNode = ((pkg.engines||{}).node||'').replace(/[^0-9.]/g,'').split('.')[0];
+    R.langMaj = nvmrc || engNode || '20';
+    R.langVer = `Node ${R.langMaj}`;
+    R.buildImg = `node:${R.langMaj}-alpine`;
+    R.baseImg  = `node:${R.langMaj}-alpine`;
+
+    // ── TypeScript ──
+    R.isTS = hf('tsconfig.json') || has(dStr,'typescript','ts-node');
+
+    // ── Monorepo ──
+    R.isMonorepo = !!(pkg.workspaces) || hf('turbo.json') || hf('nx.json') || hf('lerna.json');
+
+    // ── Install/build commands by pkg manager ──
+    const ic = {npm:'npm ci',yarn:'yarn install --frozen-lockfile',pnpm:'pnpm install --frozen-lockfile',bun:'bun install --frozen-lockfile'};
+    const bc = {npm:'npm run build',yarn:'yarn build',pnpm:'pnpm build',bun:'bun run build'};
+    const sc = {npm:'npm start',yarn:'yarn start',pnpm:'pnpm start',bun:'bun start'};
+
+    R.buildCmd = ic[R.pkgMgr];
+
+    // ── Framework detection (ordered by specificity) ──
+    if (deps['next']) {
+      R.framework='Next.js'; R.port='3000'; R.isMulti=true;
+      R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd = sc[R.pkgMgr];
+      R.healthPath='/api/health';
+      R.memLimit='1g';
+    } else if (deps['nuxt'] || deps['nuxt3'] || deps['@nuxt/kit']) {
+      R.framework='Nuxt.js'; R.port='3000'; R.isMulti=true;
+      R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd = 'node .output/server/index.mjs';
+    } else if (deps['@angular/core']) {
+      R.framework='Angular'; R.port='80'; R.isStatic=true; R.isMulti=true;
+      R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd = 'nginx -g "daemon off;"';
+      R.healthPath='/';
+    } else if (deps['react-scripts']) {
+      R.framework='Create React App'; R.port='80'; R.isStatic=true; R.isMulti=true;
+      R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd = 'nginx -g "daemon off;"'; R.healthPath='/';
+    } else if (deps['react'] && (deps['vite']||deps['@vitejs/plugin-react'])) {
+      R.framework='React + Vite'; R.port='80'; R.isStatic=true; R.isMulti=true;
+      R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd='nginx -g "daemon off;"'; R.healthPath='/';
+    } else if (deps['vue'] && (deps['vite']||deps['@vitejs/plugin-vue'])) {
+      R.framework='Vue + Vite'; R.port='80'; R.isStatic=true; R.isMulti=true;
+      R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd='nginx -g "daemon off;"'; R.healthPath='/';
+    } else if (deps['@sveltejs/kit']) {
+      R.framework='SvelteKit'; R.port='3000'; R.isMulti=true;
+      R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd='node build/index.js';
+    } else if (deps['svelte'] && deps['vite']) {
+      R.framework='Svelte + Vite'; R.port='80'; R.isStatic=true; R.isMulti=true;
+      R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd='nginx -g "daemon off;"';
+    } else if (deps['astro']) {
+      R.framework='Astro'; R.port='4321'; R.isMulti=true;
+      R.buildCmd=`${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd='node dist/server/entry.mjs';
+    } else if (deps['remix'] || deps['@remix-run/node']) {
+      R.framework='Remix'; R.port='3000'; R.isMulti=true;
+      R.buildCmd=`${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd=sc[R.pkgMgr];
+    } else if (deps['@nestjs/core']) {
+      R.framework='NestJS'; R.port='3000'; R.isMulti=true;
+      R.buildCmd=`${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd='node dist/main';
+      R.healthPath='/health'; R.memLimit='512m';
+    } else if (deps['strapi']) {
+      R.framework='Strapi'; R.port='1337';
+      R.buildCmd=`${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd=sc[R.pkgMgr]; R.memLimit='1g';
+    } else if (deps['payload']) {
+      R.framework='PayloadCMS'; R.port='3000';
+      R.buildCmd=`${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
+      R.startCmd=sc[R.pkgMgr];
+    } else if (deps['express']) {
+      R.framework='Express'; R.port='3000'; R.startCmd=sc[R.pkgMgr];
+    } else if (deps['fastify']) {
+      R.framework='Fastify'; R.port='3000'; R.startCmd=sc[R.pkgMgr];
+    } else if (deps['koa']) {
+      R.framework='Koa'; R.port='3000'; R.startCmd=sc[R.pkgMgr];
+    } else if (deps['hono']) {
+      R.framework='Hono'; R.port='3000'; R.startCmd=sc[R.pkgMgr];
+    } else if (deps['@hapi/hapi']) {
+      R.framework='Hapi'; R.port='3000'; R.startCmd=sc[R.pkgMgr];
+    } else if (deps['sails']) {
+      R.framework='Sails.js'; R.port='1337'; R.startCmd=sc[R.pkgMgr];
+    } else if (deps['socket.io'] && !deps['express']) {
+      R.framework='Socket.IO'; R.port='3000'; R.startCmd=sc[R.pkgMgr];
+    } else if ((pkg.scripts||{}).start) {
+      R.startCmd=sc[R.pkgMgr];
     }
 
-    lines.push(
-      `# ── Runtime image (lean) ─────────────────`,
-      `FROM ${s.baseImage}`,
-      'WORKDIR /app', ''
-    );
+    // ── Procfile override ──
+    if (R.procfileCmd) { R.startCmd=R.procfileCmd; R.portSource='Procfile'; }
 
-    if (s.stack === 'node') {
-      lines.push(
-        'COPY --from=builder /build/node_modules ./node_modules',
-        'COPY --from=builder /build/ ./', ''
-      );
-    } else if (s.stack === 'go') {
-      lines.push('COPY --from=builder /build/app ./app', '');
-    } else if (s.stack === 'java') {
-      lines.push('COPY --from=builder /build/target/*.jar app.jar', '');
-    } else if (s.stack === 'rust') {
-      lines.push('COPY --from=builder /build/target/release/app ./app', '');
-    } else if (s.stack === 'dotnet') {
-      lines.push('COPY --from=builder /app/publish .', '');
+    // ── Source code port scan ──
+    const srcPort = scanPortFromSource(allSrc, 'node', R.port);
+    if (srcPort !== R.port) { R.port=srcPort; R.portSource='source code'; }
+
+    // ── Native deps that need system packages ──
+    detectNodeNativeDeps(dStr, R);
+
+    // ── DB detection ──
+    if (has(dStr,'pg','postgres','@prisma/client','typeorm','sequelize')) R.dbs.push('postgresql');
+    if (has(dStr,'mysql','mysql2')) R.dbs.push('mysql');
+    if (has(dStr,'mongoose','mongodb')) R.dbs.push('mongodb');
+    if (has(dStr,'redis','ioredis','@upstash/redis')) R.cache.push('redis');
+    if (has(dStr,'kafkajs','kafka-node')) R.queues.push('kafka');
+    if (has(dStr,'amqplib','amqp-connection-manager','bull','bullmq')) R.queues.push('rabbitmq');
+
+    // ── Worker detection ──
+    if (has(dStr,'bull','bullmq','agenda','bee-queue')) R.hasWorker=true;
+
+    // ── WebSocket ──
+    if (has(dStr,'socket.io','ws','uwebsockets')) R.services.push('websockets');
+
+    // ── GraphQL ──
+    if (has(dStr,'graphql','apollo-server','@apollo/server')) R.services.push('graphql');
+
+    // ── Alpine compatibility ──
+    // sharp, canvas, bcrypt — these need special handling on alpine
+    if (has(dStr,'sharp')) { R.sysDeps.push('vips'); R.needsAlpineWarn=true; }
+    if (has(dStr,'canvas')) { R.sysDeps.push('cairo','pango','libjpeg'); R.needsAlpineWarn=true; }
+    if (has(dStr,'bcrypt')) R.sysDeps.push('python3','make','g++');
+    if (has(dStr,'node-gyp','node-pre-gyp')) { R.sysDeps.push('python3','make','g++'); }
+    if (has(dStr,'sqlite3')) R.sysDeps.push('sqlite');
+    if (has(dStr,'puppeteer','playwright')) { R.sysDeps.push('chromium'); R.needsAlpineWarn=true; R.memLimit='1g'; }
+    if (has(dStr,'imagemagick','gm')) R.sysDeps.push('imagemagick');
+    if (has(dStr,'ffmpeg')) R.sysDeps.push('ffmpeg');
+
+    if (R.needsAlpineWarn) {
+      R.baseImg=`node:${R.langMaj}-bullseye-slim`;
+      R.buildImg=`node:${R.langMaj}-bullseye-slim`;
+      R.useAlpine=false;
     }
-  } else {
-    lines.push(`FROM ${buildImg}`);
-    lines.push('WORKDIR /app', '');
 
-    if (s.stack === 'python') {
-      lines.push(
-        '# Cache pip layer',
-        'COPY requirements*.txt ./',
-        'RUN pip install --no-cache-dir -r requirements.txt',
-        '', 'COPY . .', ''
-      );
-    } else if (s.stack === 'php') {
-      lines.push(
-        'COPY composer*.json ./',
-        'RUN composer install --no-dev --optimize-autoloader',
-        '', 'COPY . .', ''
-      );
-    } else if (s.stack === 'ruby') {
-      lines.push(
-        'COPY Gemfile* ./',
-        'RUN bundle install --without development test',
-        '', 'COPY . .', ''
-      );
-    } else {
-      if (s.buildCmd) {
-        lines.push('COPY . .', `RUN ${s.buildCmd}`, '');
-      } else {
-        lines.push('COPY . .', '');
+    // ── NODE_OPTIONS memory hint ──
+    const memMB = parseInt(R.memLimit) * (R.memLimit.endsWith('g') ? 1024 : 1);
+    if (memMB >= 512) R.nodeOptions=`--max-old-space-size=${Math.floor(memMB * 0.75)}`;
+
+    // ── needs git during build (some packages) ──
+    if (has(dStr,'node-pre-gyp') || pkgStr.includes('git+')) R.needsGit=true;
+  }
+
+  /* ═════════ DENO ════════════════════════════════════════ */
+  else if (hf('deno.json') || hf('deno.jsonc')) {
+    R.stack='deno'; R.display='Deno'; R.icon='⚡'; R.port='8000';
+    R.pkgMgr='deno'; R.langVer='Deno 2'; R.buildImg='denoland/deno:2-alpine'; R.baseImg='denoland/deno:2-alpine';
+    R.buildCmd='deno cache main.ts 2>/dev/null || true';
+    let dc={}; try{dc=JSON.parse(C['deno.json']||C['deno.jsonc']||'{}')}catch(_){}
+    const tasks = dc.tasks||{};
+    R.startCmd = tasks.start ? `deno task start` : 'deno run --allow-net --allow-env --allow-read main.ts';
+    R.healthPath='/health';
+  }
+
+  /* ═════════ PYTHON ══════════════════════════════════════ */
+  else if (hf('requirements.txt') || hf('Pipfile') || hf('pyproject.toml') || hf('setup.py')) {
+    R.stack='python'; R.display='Python'; R.icon='🐍';
+    R.port='8000'; R.startCmd='python main.py';
+
+    // ── Python version (multiple sources) ──
+    const pyDotVer = (C['.python-version']||'').trim().replace('python-','');
+    const rtxtVer  = (C['runtime.txt']||'').trim().replace('python-','');
+    const toolPy   = ((C['.tool-versions']||'').match(/python\s+([\d.]+)/) || [])[1] || '';
+    const toml     = C['pyproject.toml']||'';
+    const tomlVer  = (toml.match(/python_requires\s*=\s*["'][>=!^~]*([\d.]+)/) || [])[1] || '';
+    const ver      = pyDotVer || rtxtVer || toolPy || tomlVer || '3.12';
+    R.langMaj      = ver.split('.').slice(0,2).join('.');
+    R.langVer      = `Python ${R.langMaj}`;
+    R.buildImg     = `python:${R.langMaj}-slim`;
+    R.baseImg      = `python:${R.langMaj}-slim`;
+
+    // ── Package manager ──
+    if (hf('Pipfile'))                                      R.pkgMgr='pipenv';
+    else if (has(toml,'[tool.poetry]'))                    R.pkgMgr='poetry';
+    else if (has(toml,'[tool.pdm]'))                       R.pkgMgr='pdm';
+    else if (has(toml,'[tool.hatch]'))                     R.pkgMgr='hatch';
+    else if (has(toml,'[tool.uv]') || hf('uv.lock'))      R.pkgMgr='uv';
+    else                                                    R.pkgMgr='pip';
+
+    const req  = (C['requirements.txt']||'').toLowerCase();
+    const ppf  = (C['Pipfile']||'').toLowerCase();
+    const pytp = toml.toLowerCase();
+    const allPy = req+ppf+pytp;
+
+    // ── Framework ──
+    if      (has(allPy,'fastapi'))    { R.framework='FastAPI';    R.port='8000'; R.healthPath='/docs'; }
+    else if (has(allPy,'litestar'))   { R.framework='Litestar';   R.port='8000'; }
+    else if (has(allPy,'sanic'))      { R.framework='Sanic';      R.port='8000'; }
+    else if (has(allPy,'aiohttp'))    { R.framework='aiohttp';    R.port='8080'; }
+    else if (has(allPy,'tornado'))    { R.framework='Tornado';    R.port='8888'; }
+    else if (has(allPy,'django'))     { R.framework='Django';     R.port='8000'; R.healthPath='/admin/'; R.memLimit='512m'; }
+    else if (has(allPy,'flask'))      { R.framework='Flask';      R.port='5000'; }
+    else if (has(allPy,'starlette'))  { R.framework='Starlette';  R.port='8000'; }
+    else if (has(allPy,'pyramid'))    { R.framework='Pyramid';    R.port='6543'; }
+    else if (has(allPy,'bottle'))     { R.framework='Bottle';     R.port='8080'; }
+    else if (has(allPy,'falcon'))     { R.framework='Falcon';     R.port='8000'; }
+
+    // ── ASGI vs WSGI ──
+    const isASGI = has(allPy,'fastapi','starlette','litestar','sanic');
+    const hasGunicorn = has(allPy,'gunicorn');
+    const hasUvicorn  = has(allPy,'uvicorn');
+
+    // ── Start command ──
+    if (R.procfileCmd) {
+      R.startCmd = R.procfileCmd; R.portSource='Procfile';
+    } else if (isASGI) {
+      const mod = hf('main.py') ? 'main:app' : 'app:app';
+      R.startCmd = `uvicorn ${mod} --host 0.0.0.0 --port ${R.port} --workers 4`;
+    } else if (R.framework==='Django') {
+      if (hasGunicorn)
+        R.startCmd = `gunicorn --bind 0.0.0.0:${R.port} --workers 4 --timeout 120 --access-logfile - project.wsgi:application`;
+      else
+        R.startCmd = `python manage.py runserver 0.0.0.0:${R.port}`;
+    } else if (R.framework==='Flask') {
+      if (hasGunicorn)
+        R.startCmd = `gunicorn --bind 0.0.0.0:${R.port} --workers 4 wsgi:app`;
+      else
+        R.startCmd = `flask run --host=0.0.0.0 --port=${R.port}`;
+    }
+
+    // ── Scan source code for port ──
+    const srcPy = scanPortFromSource(allSrc, 'python', R.port);
+    if (srcPy !== R.port && !R.procfileCmd) { R.port=srcPy; R.portSource='source code'; }
+
+    // ── Build command ──
+    if      (R.pkgMgr==='poetry')  R.buildCmd='poetry install --no-dev --no-interaction';
+    else if (R.pkgMgr==='pipenv')  R.buildCmd='pipenv install --deploy --system';
+    else if (R.pkgMgr==='pdm')     R.buildCmd='pdm install --prod';
+    else if (R.pkgMgr==='uv')      R.buildCmd='uv pip install --system -r requirements.txt';
+    else                            R.buildCmd='pip install --no-cache-dir -r requirements.txt';
+
+    // ── Native system deps ──
+    if (has(allPy,'pillow','pil'))         R.sysDeps.push('libjpeg-dev','libpng-dev');
+    if (has(allPy,'lxml'))                 R.sysDeps.push('libxml2-dev','libxslt-dev');
+    if (has(allPy,'psycopg2') && !has(allPy,'psycopg2-binary')) R.sysDeps.push('libpq-dev');
+    if (has(allPy,'mysqlclient'))          R.sysDeps.push('default-libmysqlclient-dev');
+    if (has(allPy,'pycairo'))              R.sysDeps.push('libcairo2-dev');
+    if (has(allPy,'cryptography'))         R.sysDeps.push('libssl-dev','libffi-dev');
+    if (has(allPy,'cffi','crypt'))         R.sysDeps.push('libffi-dev');
+    if (has(allPy,'pandas','numpy','scipy')) { R.sysDeps.push('gcc','g++','gfortran'); R.memLimit='1g'; }
+    if (has(allPy,'torch','tensorflow'))   { R.memLimit='2g'; R.warnings.push('ML frameworks detected — consider GPU-enabled base image'); }
+    if (has(allPy,'celery'))               { R.hasWorker=true; R.services.push('celery'); }
+    if (has(allPy,'dramatiq','rq','huey')) { R.hasWorker=true; }
+    if (R.sysDeps.length)                  { R.hasSysDeps=true; }
+
+    // ── DB ──
+    if (has(allPy,'psycopg2','psycopg','asyncpg','databases')) R.dbs.push('postgresql');
+    if (has(allPy,'pymysql','mysqlclient','aiomysql'))          R.dbs.push('mysql');
+    if (has(allPy,'pymongo','motor','beanie'))                  R.dbs.push('mongodb');
+    if (has(allPy,'redis','aioredis','fakeredis'))              R.cache.push('redis');
+    if (has(allPy,'kafka','aiokafka'))                          R.queues.push('kafka');
+    if (has(allPy,'pika','aio_pika'))                           R.queues.push('rabbitmq');
+    if (has(allPy,'elasticsearch'))                             R.services.push('elasticsearch');
+  }
+
+  /* ═════════ JAVA ════════════════════════════════════════ */
+  else if (hf('pom.xml') || hf('build.gradle') || hf('build.gradle.kts')) {
+    R.stack='java'; R.display='Java'; R.icon='☕';
+    R.port='8080'; R.isMulti=true;
+    R.javaType = (hf('build.gradle')||hf('build.gradle.kts')) ? 'gradle' : 'maven';
+
+    const pom   = (C['pom.xml']||'').toLowerCase();
+    const gradle= (C['build.gradle']||C['build.gradle.kts']||'').toLowerCase();
+    const appProp = (C['application.properties']||C['application.yml']||C['application.yaml']||'').toLowerCase();
+    const allJava = pom+gradle+appProp;
+
+    // ── Java version ──
+    const javaMaj = (pom.match(/<java.version>(\d+)</) || pom.match(/<maven.compiler.source>(\d+)/) ||
+                     gradle.match(/sourceCompatibility\s*=\s*['"]?(\d+)/) || [])[1] || '21';
+    R.langMaj  = javaMaj;
+    R.langVer  = `Java ${javaMaj}`;
+    R.buildImg = `eclipse-temurin:${javaMaj}-jdk-alpine`;
+    R.baseImg  = `eclipse-temurin:${javaMaj}-jre-alpine`;
+    R.pkgMgr   = R.javaType;
+    R.jvmFlags = `-Xms256m -Xmx${R.memLimit} -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0`;
+
+    // ── Build cmd ──
+    R.buildCmd = R.javaType==='gradle'
+      ? './gradlew build -x test --no-daemon -q'
+      : 'mvn clean package -DskipTests -q -B';
+
+    // ── Framework ──
+    if      (has(allJava,'spring-boot'))      { R.framework='Spring Boot'; R.healthPath='/actuator/health'; R.healthStart=60; }
+    else if (has(allJava,'quarkus'))           { R.framework='Quarkus';     R.healthPath='/q/health'; }
+    else if (has(allJava,'micronaut'))         { R.framework='Micronaut';   R.healthPath='/health'; }
+    else if (has(allJava,'helidon'))           { R.framework='Helidon'; }
+    else if (has(allJava,'vert.x','vertx'))    { R.framework='Vert.x'; }
+    else if (has(allJava,'jakarta'))           { R.framework='Jakarta EE'; }
+
+    // ── Port from application.properties ──
+    const propPort = (appProp.match(/server\.port\s*[=:]\s*(\d+)/)||[])[1];
+    if (propPort) { R.port=propPort; R.portSource='application.properties'; }
+
+    R.startCmd = `java ${R.jvmFlags} -jar app.jar`;
+
+    // ── DB ──
+    if (has(allJava,'postgresql','postgres'))  R.dbs.push('postgresql');
+    if (has(allJava,'mysql'))                  R.dbs.push('mysql');
+    if (has(allJava,'mongodb'))                R.dbs.push('mongodb');
+    if (has(allJava,'redis'))                  R.cache.push('redis');
+    if (has(allJava,'kafka'))                  R.queues.push('kafka');
+    if (has(allJava,'rabbitmq','amqp'))        R.queues.push('rabbitmq');
+  }
+
+  /* ═════════ GO ══════════════════════════════════════════ */
+  else if (hf('go.mod')) {
+    R.stack='go'; R.display='Go'; R.icon='🐹';
+    R.port='8080'; R.isMulti=true; R.pkgMgr='go mod';
+    R.useDistroless=true;
+
+    const gomod = C['go.mod']||'';
+    const gover = (gomod.match(/^go\s+([\d.]+)/m)||[])[1] || '1.22';
+    R.langMaj  = gover;
+    R.langVer  = `Go ${gover}`;
+    R.buildImg = `golang:${gover}-alpine`;
+    R.baseImg  = 'gcr.io/distroless/static-debian12';
+
+    R.buildCmd = 'CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags=\'-w -s\' -o /app/app .';
+    R.startCmd = '/app/app';
+    R.signals  = 'SIGTERM';
+
+    const goStr = gomod.toLowerCase();
+    if      (has(goStr,'gin-gonic/gin'))           R.framework='Gin';
+    else if (has(goStr,'gofiber/fiber'))            R.framework='Fiber';
+    else if (has(goStr,'labstack/echo'))            R.framework='Echo';
+    else if (has(goStr,'go-chi/chi'))               R.framework='Chi';
+    else if (has(goStr,'gorilla/mux'))              R.framework='Gorilla Mux';
+    else if (has(goStr,'beego'))                    R.framework='Beego';
+    else if (has(goStr,'buffalo'))                  R.framework='Buffalo';
+    else if (has(goStr,'go-kit/kit'))               R.framework='go-kit';
+
+    // ── Source code port scan ──
+    const srcGo = scanPortFromSource(allSrc, 'go', R.port);
+    if (srcGo !== R.port) { R.port=srcGo; R.portSource='source code'; }
+
+    // ── DB / cache ──
+    if (has(goStr,'pgx','pq','postgres','ent')) R.dbs.push('postgresql');
+    if (has(goStr,'go-sql-driver/mysql'))        R.dbs.push('mysql');
+    if (has(goStr,'mongo-driver'))               R.dbs.push('mongodb');
+    if (has(goStr,'go-redis','redis'))           R.cache.push('redis');
+    if (has(goStr,'nats-io'))                    R.queues.push('nats');
+    if (has(goStr,'confluentinc/confluent-kafka')) R.queues.push('kafka');
+    if (has(goStr,'grpc'))                       R.services.push('grpc');
+  }
+
+  /* ═════════ PHP ═════════════════════════════════════════ */
+  else if (hf('composer.json')) {
+    R.stack='php'; R.display='PHP'; R.icon='🐘'; R.port='80';
+    R.pkgMgr='composer';
+
+    let comp={}; try{comp=JSON.parse(C['composer.json']||'{}')}catch(_){}
+    const phpReq = ((comp.require||{})['php']||'').replace(/[^0-9.]/g,'').split('.')[0] || '8';
+    R.langMaj=phpReq; R.langVer=`PHP ${phpReq}`;
+    R.buildImg=`php:${phpReq}.3-fpm-alpine`; R.baseImg=R.buildImg;
+    R.buildCmd='composer install --no-dev --optimize-autoloader --no-interaction --no-scripts';
+
+    const compStr=(C['composer.json']||'').toLowerCase();
+    if      (has(compStr,'laravel/framework'))   { R.framework='Laravel';    R.port='80';   R.startCmd='php artisan serve --host=0.0.0.0 --port=80'; R.healthPath='/'; }
+    else if (has(compStr,'symfony/framework'))   { R.framework='Symfony';    R.port='8000'; R.startCmd='symfony server:start --no-tls'; }
+    else if (has(compStr,'slim/slim'))           { R.framework='Slim';       R.startCmd='php -S 0.0.0.0:80 -t public'; }
+    else if (has(compStr,'cakephp/cakephp'))     { R.framework='CakePHP';    R.startCmd='bin/cake server -H 0.0.0.0 -p 80'; }
+    else if (has(compStr,'yiisoft/yii2'))        { R.framework='Yii2'; }
+    else if (has(compStr,'codeigniter4'))         { R.framework='CodeIgniter'; }
+    else if (has(compStr,'wordpress'))            { R.framework='WordPress';  R.startCmd='php-fpm'; }
+    else                                          { R.startCmd='php-fpm'; }
+
+    if (has(compStr,'pgsql','postgres'))         R.dbs.push('postgresql');
+    if (has(compStr,'mysql','mysqli','pdo_mysql')) R.dbs.push('mysql');
+    if (has(compStr,'mongodb'))                  R.dbs.push('mongodb');
+    if (has(compStr,'predis','phpredis'))         R.cache.push('redis');
+    if (has(compStr,'imagick','gd'))              R.sysDeps.push('imagemagick');
+    if (has(compStr,'gmp'))                       R.sysDeps.push('libgmp-dev');
+  }
+
+  /* ═════════ RUBY ════════════════════════════════════════ */
+  else if (hf('Gemfile')) {
+    R.stack='ruby'; R.display='Ruby'; R.icon='💎'; R.port='3000';
+    R.pkgMgr='bundler';
+
+    const gem    = (C['Gemfile']||'').toLowerCase();
+    const gemVer = (C['Gemfile']||'').match(/ruby ['"](\d+\.\d+)/) ||
+                   (C['.ruby-version']||'').trim().replace('ruby-','').match(/(\d+\.\d+)/);
+    const rv     = (gemVer||[])[1] || '3.3';
+    R.langMaj=rv; R.langVer=`Ruby ${rv}`;
+    R.buildImg=`ruby:${rv}-alpine`; R.baseImg=R.buildImg;
+    R.buildCmd='bundle install --without development test --jobs 4 --retry 3';
+
+    if      (has(gem,'rails'))      { R.framework='Rails';   R.port='3000'; R.startCmd='bundle exec rails server -b 0.0.0.0 -p 3000'; R.isMulti=true; R.healthPath='/up'; }
+    else if (has(gem,'sinatra'))    { R.framework='Sinatra'; R.port='4567'; R.startCmd='bundle exec ruby app.rb -o 0.0.0.0'; }
+    else if (has(gem,'hanami'))     { R.framework='Hanami';  R.port='2300'; R.startCmd='bundle exec hanami server'; }
+    else if (has(gem,'padrino'))    { R.framework='Padrino'; }
+    else if (has(gem,'roda'))       { R.framework='Roda'; }
+    else if (has(gem,'grape'))      { R.framework='Grape'; }
+
+    if (R.procfileCmd)    { R.startCmd=R.procfileCmd; R.portSource='Procfile'; }
+    else { const sp=scanPortFromSource(allSrc,'ruby',R.port); if(sp!==R.port){R.port=sp;R.portSource='source code';} }
+
+    if (has(gem,'pg','postgres'))  R.dbs.push('postgresql');
+    if (has(gem,'mysql2'))         R.dbs.push('mysql');
+    if (has(gem,'mongoid','mongo')) R.dbs.push('mongodb');
+    if (has(gem,'redis'))           R.cache.push('redis');
+    if (has(gem,'sidekiq'))         { R.hasWorker=true; R.services.push('sidekiq'); }
+    if (has(gem,'resque'))          { R.hasWorker=true; }
+    if (has(gem,'sqlite3'))         R.sysDeps.push('sqlite-dev');
+    if (has(gem,'nokogiri'))        R.sysDeps.push('libxml2-dev','libxslt-dev');
+    if (has(gem,'rmagick','mini_magick')) R.sysDeps.push('imagemagick');
+  }
+
+  /* ═════════ RUST ════════════════════════════════════════ */
+  else if (hf('Cargo.toml')) {
+    R.stack='rust'; R.display='Rust'; R.icon='🦀'; R.port='8080';
+    R.pkgMgr='cargo'; R.isMulti=true; R.useDistroless=true;
+
+    const cargo=(C['Cargo.toml']||'').toLowerCase();
+    R.buildImg='rust:1.80-alpine';
+    R.baseImg='gcr.io/distroless/cc-debian12';
+    R.buildCmd='cargo build --release --locked';
+    R.startCmd='./app';
+
+    if      (has(cargo,'actix-web'))   { R.framework='Actix-web'; R.port='8080'; }
+    else if (has(cargo,'axum'))        { R.framework='Axum';      R.port='3000'; }
+    else if (has(cargo,'rocket'))      { R.framework='Rocket';    R.port='8000'; }
+    else if (has(cargo,'warp'))        { R.framework='Warp';      R.port='3030'; }
+    else if (has(cargo,'poem'))        { R.framework='Poem';      R.port='3000'; }
+    else if (has(cargo,'tide'))        { R.framework='Tide';      R.port='8080'; }
+    else if (has(cargo,'ntex'))        { R.framework='ntex';      R.port='8080'; }
+
+    const sp=scanPortFromSource(allSrc,'rust',R.port);
+    if(sp!==R.port){R.port=sp;R.portSource='source code';}
+
+    if (has(cargo,'tokio-postgres','sqlx','diesel')) R.dbs.push('postgresql');
+    if (has(cargo,'mysql_async','mysql'))             R.dbs.push('mysql');
+    if (has(cargo,'mongodb'))                         R.dbs.push('mongodb');
+    if (has(cargo,'redis'))                           R.cache.push('redis');
+    if (has(cargo,'grpc','tonic'))                    R.services.push('grpc');
+    if (has(cargo,'rdkafka'))                         R.queues.push('kafka');
+  }
+
+  /* ═════════ .NET ════════════════════════════════════════ */
+  else if (hfe('.csproj') || hfe('.fsproj')) {
+    R.stack='dotnet'; R.display='.NET'; R.icon='🔷'; R.port='8080';
+    R.pkgMgr='nuget'; R.isMulti=true; R.framework='ASP.NET Core';
+
+    const csp = Object.values(C).find(v=>v&&v.includes('TargetFramework'))||'';
+    const tfm = (csp.match(/<TargetFramework>net(\d+)/)||[])[1] || '8';
+    R.langMaj=tfm; R.langVer=`.NET ${tfm}`;
+    R.buildImg=`mcr.microsoft.com/dotnet/sdk:${tfm}`;
+    R.baseImg=`mcr.microsoft.com/dotnet/aspnet:${tfm}`;
+    R.buildCmd=`dotnet publish -c Release -o /publish --no-restore`;
+    R.startCmd=`dotnet app.dll`;
+
+    const appset = (C['appsettings.json']||'').toLowerCase();
+    if(has(appset,'postgres','npgsql'))  R.dbs.push('postgresql');
+    if(has(appset,'mysql','pomelo'))     R.dbs.push('mysql');
+    if(has(appset,'mongo'))             R.dbs.push('mongodb');
+    if(has(appset,'redis','stackexchange')) R.cache.push('redis');
+  }
+
+  /* ═════════ C/C++ ══════════════════════════════════════ */
+  else if (hf('CMakeLists.txt') || hfe('.cpp') || hfe('.c')) {
+    R.stack='cpp'; R.display='C/C++'; R.icon='💻'; R.port='8080';
+    R.pkgMgr=hf('CMakeLists.txt') ? 'cmake' : 'make'; R.isMulti=true;
+    R.buildImg='gcc:13-bookworm'; R.baseImg='debian:12-slim';
+    R.buildCmd = hf('CMakeLists.txt')
+      ? 'cmake -B build -DCMAKE_BUILD_TYPE=Release && cmake --build build -j$(nproc)'
+      : 'make -j$(nproc)';
+    R.startCmd='./app';
+  }
+
+  /* ═════════ ENV VARS (all stacks) ══════════════════════ */
+  const envSrc = C['.env.example']||C['.env.sample']||C['.env']||'';
+  if (envSrc) {
+    envSrc.split('\n').forEach(line => {
+      const l = line.trim();
+      if (l && !l.startsWith('#') && l.includes('=')) {
+        const [k,...rest] = l.split('=');
+        R.envVars.push(k.trim());
+        R.envVals[k.trim()] = rest.join('=').trim();
       }
-    }
+    });
+  }
+  // Also pull port from env
+  const envAll = envSrc.toLowerCase();
+  if (!R.portSource && has(envAll,'port=')) {
+    const ep = (envSrc.match(/^PORT=(\d+)/m)||[])[1];
+    if (ep && ep !== R.port) { R.port=ep; R.portSource='.env file'; }
   }
 
-  // Non-root (not dotnet, distroless)
-  if (!['dotnet'].includes(s.stack)) {
-    lines.push(
-      '# Security: run as non-root',
-      'RUN addgroup -S appgroup && adduser -S appuser -G appgroup',
-      'USER appuser', ''
-    );
-  }
+  /* ═════════ VOLUMES ════════════════════════════════════ */
+  if (paths.some(p=>p.includes('/uploads/')||p.includes('/storage/'))) R.volumes.push('uploads:/app/uploads');
+  if (paths.some(p=>p.includes('/logs/'))) R.volumes.push('logs:/app/logs');
+  if (R.framework==='Laravel') R.volumes.push('storage:/app/storage');
+  if (R.framework==='WordPress') R.volumes.push('wp-content:/var/www/html/wp-content');
 
-  lines.push(
-    '# Healthcheck',
-    `HEALTHCHECK --interval=30s --timeout=5s --start-period=10s \\`,
-    `  CMD wget -qO- http://localhost:${s.port}/health || exit 1`,
-    ''
-  );
+  /* ═════════ OCI LABELS ════════════════════════════════ */
+  R.ociLabels = {
+    'org.opencontainers.image.title': '${APP_NAME:-app}',
+    'org.opencontainers.image.version': '${APP_VERSION:-1.0.0}',
+    'org.opencontainers.image.created': '$(date -u +"%Y-%m-%dT%H:%M:%SZ")',
+    'org.opencontainers.image.source': '${GIT_REPO:-}',
+  };
 
-  lines.push(`EXPOSE ${s.port}`, '');
-  lines.push(`CMD ${JSON.stringify(s.startCmd.split(' '))}`);
+  /* ═════════ INSIGHTS (smart suggestions) ═══════════════ */
+  if (R.dbs.length && !envSrc.includes('DATABASE_URL'))
+    R.insights.push({type:'warn', text:'Database detected but no DATABASE_URL found in .env.example — add one'});
+  if (R.isMonorepo)
+    R.insights.push({type:'info', text:'Monorepo structure — Dockerfile targets the root; adjust WORKDIR for sub-packages'});
+  if (R.needsAlpineWarn)
+    R.insights.push({type:'warn', text:`Native module requires non-Alpine image (${R.sysDeps.join(', ')}) — switched to bullseye-slim`});
+  if (R.services.includes('graphql'))
+    R.insights.push({type:'info', text:'GraphQL detected — expose /graphql endpoint; consider disabling introspection in prod'});
+  if (R.services.includes('grpc'))
+    R.insights.push({type:'info', text:'gRPC detected — remember to EXPOSE both HTTP ('+R.port+') and gRPC (50051) ports if needed'});
+  if (R.services.includes('websockets'))
+    R.insights.push({type:'info', text:'WebSockets detected — make sure your load balancer/nginx has sticky sessions or upgrade headers'});
+  if (R.hasWorker)
+    R.insights.push({type:'info', text:'Background worker detected — docker-compose includes a separate worker service'});
+  if (R.hasSupervisor)
+    R.insights.push({type:'good', text:'supervisord.conf found — using it to manage multiple processes in one container'});
+  if (R.portSource)
+    R.insights.push({type:'good', text:`Port ${R.port} confirmed by reading your ${R.portSource} — not just a default guess`});
+  if (R.procfileCmd)
+    R.insights.push({type:'good', text:`Start command taken from your Procfile: ${R.procfileCmd}`});
+  if (R.volumes.length)
+    R.insights.push({type:'warn', text:`Persistent paths detected (${R.volumes.map(v=>v.split(':')[1]).join(', ')}) — volumes added to compose`});
+  if (has((C['.gitignore']||''),'*.env','.env') === false && R.envVars.length)
+    R.insights.push({type:'crit', text:'.env is NOT in .gitignore — your secrets may be committed to git!'});
+  if (R.needsGit)
+    R.insights.push({type:'warn', text:'Build requires git — added to build stage apt-get install'});
+  if (R.useDistroless)
+    R.insights.push({type:'good', text:'Using distroless runtime image — minimal attack surface, no shell, no package manager'});
 
-  return lines.join('\n');
+  R.needsDB = R.dbs.length > 0;
+  R.hasSysDeps = R.sysDeps.length > 0;
+  return R;
 }
 
-function buildCompose(s) {
-  return `# docker-compose.yml
-# Stack: ${s.display}${s.framework ? ' · ' + s.framework : ''}
+/* ═══════════════════════════════════════════════════════
+   PORT SCANNER — reads actual source code
+   ═══════════════════════════════════════════════════════ */
+function scanPortFromSource(src, stack, fallback) {
+  if (!src) return fallback;
+
+  const patterns = {
+    node: [
+      /\.listen\(\s*(?:process\.env\.PORT\s*\|\|\s*)?(\d{3,5})/,
+      /PORT\s*[=:]\s*(\d{3,5})/,
+      /port\s*[=:]\s*(\d{3,5})/i,
+      /createServer[^)]*\)\s*\.listen\(\s*(\d{3,5})/,
+    ],
+    python: [
+      /\.run\([^)]*port\s*=\s*(\d{3,5})/,
+      /uvicorn\.run[^)]*port\s*=\s*(\d{3,5})/,
+      /PORT\s*=\s*(?:int\([^)]*\)\s*=\s*)?(\d{3,5})/,
+      /port\s*=\s*(?:int\(os[^)]*\)\s*or\s*)?(\d{3,5})/i,
+      /listen\(["']0\.0\.0\.0:(\d{3,5})/,
+    ],
+    go: [
+      /ListenAndServe\(["']:(\d{3,5})/,
+      /Addr\s*[:=]\s*["']:\s*(\d{3,5})/,
+      /:(\d{3,5})["']/,
+      /port\s*:=\s*["']:?(\d{3,5})/i,
+      /PORT\s*[=:]\s*["']?(\d{3,5})/,
+    ],
+    ruby: [
+      /set\s+:port,\s*(\d{3,5})/,
+      /port\s+(\d{3,5})/,
+      /PORT\s*=\s*(?:ENV\[["']PORT["']\]\s*\|\|\s*)?(\d{3,5})/,
+      /listen\s+(\d{3,5})/,
+    ],
+    rust: [
+      /\.bind\(["'][^"']*:(\d{3,5})/,
+      /port\s*[:=]\s*(\d{3,5})/i,
+      /HttpServer[^.]*\.bind\([^)]*(\d{3,5})/,
+    ],
+  };
+
+  const pats = patterns[stack] || [];
+  for (const re of pats) {
+    const m = src.match(re);
+    if (m && m[1]) {
+      const p = m[1];
+      if (parseInt(p) > 1023 && parseInt(p) < 65536) return p;
+    }
+  }
+  return fallback;
+}
+
+/* ═══════════════════════════════════════════════════════
+   NATIVE DEP DETECTOR
+   ═══════════════════════════════════════════════════════ */
+function detectNodeNativeDeps(dStr, R) {
+  if (has(dStr,'sharp'))           { R.sysDeps.push('vips-dev'); }
+  if (has(dStr,'canvas'))          { R.sysDeps.push('cairo-dev','pango-dev','libjpeg-turbo-dev'); }
+  if (has(dStr,'bcrypt'))          R.sysDeps.push('python3','make','g++');
+  if (has(dStr,'argon2'))          R.sysDeps.push('python3','make','g++');
+  if (has(dStr,'node-gyp','node-pre-gyp')) { R.sysDeps.push('python3','make','g++'); R.needsGit=true; }
+  if (has(dStr,'sqlite3'))         R.sysDeps.push('sqlite-dev');
+  if (has(dStr,'puppeteer'))       { R.sysDeps.push('chromium','nss','freetype','freetype-dev','harfbuzz','ca-certificates','ttf-freefont'); R.needsAlpineWarn=true; }
+  if (has(dStr,'playwright'))      { R.sysDeps.push('chromium-browser'); R.needsAlpineWarn=true; }
+  if (has(dStr,'imagemagick','gm')) R.sysDeps.push('imagemagick');
+  if (has(dStr,'ffmpeg'))          R.sysDeps.push('ffmpeg');
+  if (has(dStr,'ssh2'))            { R.sysDeps.push('openssh'); R.needsSSH=true; }
+  if (has(dStr,'libsass','node-sass')) { R.sysDeps.push('python3','make','g++'); }
+}
+
+function has(text,...terms) { return terms.some(t=>(text||'').toLowerCase().includes(t.toLowerCase())); }
+
+/* ═══════════════════════════════════════════════════════
+   📄 DOCKERFILE GENERATOR
+   ═══════════════════════════════════════════════════════ */
+function mkDockerfile(R) {
+  const L=[];
+  const a = (...ls) => ls.forEach(l=>L.push(l));
+  const nl = () => L.push('');
+  const sec = t => a(`# ── ${t} ${'─'.repeat(Math.max(0,46-t.length))}`);
+
+  a(`# Dockerfile — ${R.display}${R.framework?' · '+R.framework:''}`);
+  a(`# Generated by Captain Container`);
+  a(`# Stack: ${R.langVer||R.display} | Port: ${R.port} | Multi-stage: ${R.isMulti?'yes':'no'}`);
+  nl();
+
+  /* ── STATIC FRONTENDS ──── */
+  if (R.isStatic) {
+    sec('Build stage');
+    a(`FROM ${R.buildImg} AS deps`);
+    a('WORKDIR /app'); nl();
+    a('COPY package*.json ./');
+    if (R.pkgMgr==='yarn')  { a('COPY yarn.lock ./'); a('RUN yarn install --frozen-lockfile'); }
+    else if (R.pkgMgr==='pnpm') { a('COPY pnpm-lock.yaml ./'); a('RUN corepack enable pnpm && pnpm install --frozen-lockfile'); }
+    else if (R.pkgMgr==='bun')  { a('COPY bun.lockb ./'); a(`FROM ${R.buildImg} AS deps`); a('RUN bun install --frozen-lockfile'); }
+    else a('RUN npm ci'); nl();
+
+    a(`FROM ${R.buildImg} AS builder`);
+    a('WORKDIR /app');
+    a('COPY --from=deps /app/node_modules ./node_modules');
+    a('COPY . .'); nl();
+    if (R.nodeOptions) a(`ENV NODE_OPTIONS="${R.nodeOptions}"`);
+    a(`RUN npm run build`); nl();
+
+    sec('Runtime stage — nginx:alpine for static serving');
+    a('FROM nginx:1.27-alpine AS runtime'); nl();
+    a('# OCI Labels'); a('LABEL org.opencontainers.image.title="${APP_NAME:-app}" \\'); a('      org.opencontainers.image.version="${APP_VERSION:-1.0.0}"'); nl();
+    a('RUN rm -rf /usr/share/nginx/html/*');
+    const distDir = R.framework==='Angular' ? 'dist/app/browser' : R.framework==='Create React App' ? 'build' : 'dist';
+    a(`COPY --from=builder /app/${distDir} /usr/share/nginx/html`);
+    if (R.hasNginx) a('COPY nginx.conf /etc/nginx/conf.d/default.conf');
+    else { a('RUN printf \'server{\\n  listen 80;\\n  root /usr/share/nginx/html;\\n  location / { try_files $uri $uri/ /index.html; }\\n  gzip on;\\n  gzip_types text/css application/javascript application/json;\\n}\' > /etc/nginx/conf.d/default.conf'); }
+    nl();
+    a('EXPOSE 80');
+    a('HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \\');
+    a('  CMD wget -qO- http://localhost/ || exit 1'); nl();
+    a('STOPSIGNAL SIGQUIT');
+    a('CMD ["nginx", "-g", "daemon off;"]');
+    return L.join('\n');
+  }
+
+  /* ── MULTI-STAGE ──── */
+  if (R.isMulti) {
+    sec('Build stage');
+    a(`FROM ${R.buildImg} AS builder`);
+    a('WORKDIR /build'); nl();
+
+    if (R.stack==='node') {
+      if (R.sysDeps.length && !R.useAlpine) { a(`RUN apt-get update && apt-get install -y --no-install-recommends ${R.sysDeps.join(' ')} \\`); a('    && rm -rf /var/lib/apt/lists/*'); nl(); }
+      else if (R.sysDeps.length && R.useAlpine) { a(`RUN apk add --no-cache ${R.sysDeps.join(' ')}`); nl(); }
+      if (R.needsGit) { a(R.useAlpine ? 'RUN apk add --no-cache git' : 'RUN apt-get update && apt-get install -y --no-install-recommends git && rm -rf /var/lib/apt/lists/*'); nl(); }
+      a('# Layer cache: only copy dependency manifests first');
+      a('COPY package*.json ./');
+      if (R.pkgMgr==='yarn')  { a('COPY yarn.lock ./'); a('RUN yarn install --frozen-lockfile'); }
+      else if (R.pkgMgr==='pnpm') { a('COPY pnpm-lock.yaml ./'); a('RUN corepack enable pnpm && pnpm install --frozen-lockfile'); }
+      else if (R.pkgMgr==='bun')  { a('COPY bun.lockb ./'); a('RUN bun install --frozen-lockfile'); }
+      else a('RUN npm ci');
+      nl(); a('COPY . .');
+      if (R.isTS || R.framework==='NestJS' || has(R.buildCmd,'build')) { nl(); if(R.nodeOptions) a(`ENV NODE_OPTIONS="${R.nodeOptions}"`); a(`RUN ${R.pkgMgr==='bun'?'bun run build':'npm run build'} 2>/dev/null || true`); }
+      nl();
+    } else if (R.stack==='java') {
+      if (R.javaType==='maven') {
+        a('# Cache Maven dependencies separately'); a('COPY pom.xml ./');
+        a('RUN mvn dependency:go-offline -q -B 2>/dev/null || true'); nl();
+        a('COPY src ./src'); a(`RUN ${R.buildCmd}`); nl();
+      } else {
+        a('COPY build.gradle* settings.gradle* gradle.properties* ./');
+        a('COPY gradle ./gradle'); a('COPY gradlew ./'); a('RUN chmod +x ./gradlew');
+        a('RUN ./gradlew dependencies --no-daemon -q 2>/dev/null || true'); nl();
+        a('COPY src ./src'); a(`RUN ${R.buildCmd}`); nl();
+      }
+    } else if (R.stack==='go') {
+      a('# Cache go modules'); a('COPY go.mod go.sum* ./'); a('RUN go mod download && go mod verify'); nl();
+      a('COPY . .'); a(`RUN ${R.buildCmd}`); nl();
+    } else if (R.stack==='rust') {
+      a('RUN apk add --no-cache musl-tools musl-dev'); nl();
+      a('# Cache dependencies by building a dummy binary first');
+      a('COPY Cargo.toml Cargo.lock ./');
+      a('RUN mkdir -p src && echo "fn main(){}" > src/main.rs \\'); a('    && cargo build --release --locked 2>/dev/null || true \\'); a('    && rm -rf src');
+      nl(); a('COPY . .'); a(`RUN ${R.buildCmd}`); nl();
+    } else if (R.stack==='dotnet') {
+      a('COPY *.csproj ./'); a('RUN dotnet restore --locked-mode 2>/dev/null || dotnet restore'); nl();
+      a('COPY . .'); a(`RUN ${R.buildCmd}`); nl();
+    } else if (R.stack==='ruby') {
+      a('RUN apk add --no-cache build-base postgresql-dev sqlite-dev'); nl();
+      a('COPY Gemfile Gemfile.lock ./'); a('RUN gem install bundler && bundle install --jobs 4 --retry 3 --without development test'); nl();
+      a('COPY . .'); if(R.framework==='Rails') { a('RUN bundle exec rails assets:precompile 2>/dev/null || true'); } nl();
+    } else if (R.stack==='cpp') {
+      a('RUN apt-get update && apt-get install -y --no-install-recommends cmake build-essential && rm -rf /var/lib/apt/lists/*'); nl();
+      a('COPY . .'); a(`RUN ${R.buildCmd}`); nl();
+    } else { a('COPY . .'); if(R.buildCmd) a(`RUN ${R.buildCmd}`); nl(); }
+
+    sec('Runtime stage — lean final image');
+    a(`FROM ${R.baseImg} AS runtime`);
+    if (!R.useDistroless) a('WORKDIR /app'); nl();
+
+    // Copy artifacts
+    if (R.stack==='node') {
+      a('COPY --from=builder /build/node_modules ./node_modules');
+      if (R.framework==='NestJS') a('COPY --from=builder /build/dist ./dist');
+      a('COPY --from=builder /build/ ./');
+    } else if (R.stack==='java') {
+      a('COPY --from=builder /build/target/*.jar app.jar');
+    } else if (R.stack==='go') {
+      a('COPY --from=builder /app/app /app/app');
+    } else if (R.stack==='rust') {
+      const binName = 'app';
+      a(`COPY --from=builder /build/target/release/${binName} /app`);
+    } else if (R.stack==='dotnet') {
+      a('COPY --from=builder /publish .');
+    } else if (R.stack==='ruby') {
+      a('COPY --from=builder /usr/local/bundle /usr/local/bundle');
+      a('COPY --from=builder /build .');
+    } else if (R.stack==='cpp') {
+      a('COPY --from=builder /build/build/app ./app');
+    }
+    nl();
+  }
+
+  /* ── SINGLE-STAGE (interpreted) ──── */
+  else {
+    sec('Application image');
+    a(`FROM ${R.buildImg}`);
+    a('WORKDIR /app'); nl();
+
+    if (R.stack==='python') {
+      const sysPkgs = [...R.sysDeps, 'curl'];
+      a(`RUN apt-get update && apt-get install -y --no-install-recommends \\`);
+      a(`    ${sysPkgs.join(' ')} \\`); a('    && rm -rf /var/lib/apt/lists/* && apt-get clean'); nl();
+      a('# Cache dependency layer');
+      if (R.pkgMgr==='poetry') {
+        a('RUN pip install --no-cache-dir poetry==1.8.0');
+        a('COPY pyproject.toml poetry.lock* ./');
+        a('RUN poetry config virtualenvs.create false && poetry install --no-dev --no-interaction --no-ansi');
+      } else if (R.pkgMgr==='pipenv') {
+        a('RUN pip install --no-cache-dir pipenv');
+        a('COPY Pipfile Pipfile.lock* ./');
+        a('RUN pipenv install --deploy --system --clear');
+      } else if (R.pkgMgr==='uv') {
+        a('RUN pip install --no-cache-dir uv');
+        a('COPY requirements*.txt ./');
+        a('RUN uv pip install --system --no-cache-dir -r requirements.txt');
+      } else {
+        a('COPY requirements*.txt ./');
+        a('RUN pip install --no-cache-dir -r requirements.txt');
+      }
+      nl(); a('COPY . .'); nl();
+    } else if (R.stack==='php') {
+      const phpExts = ['pdo','pdo_pgsql','pdo_mysql','opcache'];
+      a(`RUN docker-php-ext-install ${phpExts.join(' ')} 2>/dev/null || true`);
+      if (R.sysDeps.length) { nl(); a(`RUN apk add --no-cache ${R.sysDeps.join(' ')}`); }
+      nl(); a('COPY composer*.json ./');
+      a('RUN curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer --version=2 \\');
+      a(`    && ${R.buildCmd}`); nl(); a('COPY . .'); nl();
+    } else if (R.stack==='deno') {
+      a('COPY . .'); a(`RUN ${R.buildCmd}`); nl();
+    } else {
+      if (R.buildCmd) { a('COPY . .'); a(`RUN ${R.buildCmd}`); }
+      else a('COPY . .'); nl();
+    }
+  }
+
+  /* ── Non-root user (skip for distroless / dotnet) ──── */
+  if (!R.useDistroless && !['dotnet','deno'].includes(R.stack)) {
+    sec('Security — drop to non-root user');
+    a('RUN addgroup --system --gid 1001 appgroup \\');
+    a('    && adduser  --system --uid 1001 --ingroup appgroup --no-create-home appuser \\');
+    a('    && chown -R appuser:appgroup /app');
+    a('USER appuser'); nl();
+  }
+
+  /* ── ENV vars ──── */
+  if (R.envVars.length > 0) {
+    sec('Environment defaults (non-secret)');
+    R.envVars.slice(0,8).forEach(k => {
+      const v = R.envVals[k]||'';
+      const isSecret = /secret|password|key|token|pass|private|credentials/i.test(k);
+      a(`ENV ${k}=${isSecret ? '' : v}`);
+    });
+    nl();
+  }
+  if (R.nodeOptions) { a(`ENV NODE_OPTIONS="${R.nodeOptions}"`); nl(); }
+
+  /* ── Supervisor ──── */
+  if (R.hasSupervisor) { sec('Supervisor'); a('COPY supervisord.conf /etc/supervisord.conf'); a('RUN apk add --no-cache supervisor 2>/dev/null || apt-get install -y supervisor 2>/dev/null || true'); nl(); }
+
+  /* ── Volumes for writable paths ──── */
+  if (R.volumes.length) {
+    sec('Persistent storage');
+    R.volumes.forEach(v => a(`VOLUME ${v.split(':')[1]}`)); nl();
+  }
+
+  /* ── OCI Labels ──── */
+  sec('OCI Labels');
+  a('LABEL org.opencontainers.image.title="${APP_NAME:-app}" \\');
+  a('      org.opencontainers.image.version="${APP_VERSION:-1.0.0}" \\');
+  a('      org.opencontainers.image.description="${APP_DESCRIPTION:-}" \\');
+  a('      org.opencontainers.image.source="${GIT_REPO:-}"'); nl();
+
+  /* ── Healthcheck ──── */
+  sec('Healthcheck');
+  const hstart = R.healthStart || 15;
+  if (R.stack==='java') {
+    a(`HEALTHCHECK --interval=30s --timeout=10s --start-period=${hstart}s --retries=3 \\`);
+    a(`  CMD curl -sf http://localhost:${R.port}${R.healthPath} || exit 1`);
+  } else if (R.useDistroless) {
+    a('# Note: distroless has no shell — healthcheck uses the binary itself'); a('# HEALTHCHECK CMD ["/app", "--health"]  # implement /health in your app');
+  } else {
+    a(`HEALTHCHECK --interval=30s --timeout=5s --start-period=${hstart}s --retries=3 \\`);
+    a(`  CMD wget -qO- http://localhost:${R.port}${R.healthPath} 2>/dev/null || exit 1`);
+  }
+  nl();
+
+  /* ── Expose, STOPSIGNAL, CMD ──── */
+  a(`EXPOSE ${R.port}`); nl();
+  a(`STOPSIGNAL ${R.signals}`); nl();
+
+  const cmdParts = R.startCmd.trim().split(/\s+/);
+  if (R.hasSupervisor) a('CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]');
+  else if (R.stack==='java') a(`CMD ["java",${R.jvmFlags.split(' ').map(f=>'"'+f+'"').join(',')},"-jar","app.jar"]`);
+  else a(`CMD ${JSON.stringify(cmdParts)}`);
+
+  return L.join('\n');
+}
+
+/* ═══════════════════════════════════════════════════════
+   📄 COMPOSE GENERATOR
+   ═══════════════════════════════════════════════════════ */
+function mkCompose(R) {
+  const db = R.dbs[0]||'';
+  const useRedis = R.cache.includes('redis');
+  const volLines = R.volumes.map(v => `      - ${v}`).join('\n');
+
+  let workerSvc = '';
+  if (R.hasWorker && R.stack==='python') {
+    const wCmd = R.procfileWorker || 'celery -A app worker --loglevel=info --concurrency=4';
+    workerSvc = `
+  # ── Background Worker ─────────────────────────────────
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ${wCmd}
+    restart: unless-stopped
+    env_file: [.env]
+    depends_on:
+      - ${useRedis ? 'redis' : 'app'}
+    networks: [appnet]
+    deploy:
+      resources:
+        limits: {memory: 512m, cpus: '1.0'}`;
+  }
+  if (R.hasWorker && R.stack==='ruby' && R.services.includes('sidekiq')) {
+    workerSvc = `
+  # ── Sidekiq Worker ────────────────────────────────────
+  sidekiq:
+    build: { context: ., dockerfile: Dockerfile }
+    command: bundle exec sidekiq -C config/sidekiq.yml
+    restart: unless-stopped
+    env_file: [.env]
+    depends_on: [${useRedis ? 'redis' : 'app'}]
+    networks: [appnet]`;
+  }
+
+  let dbSvc='';
+  if (db==='postgresql') dbSvc=`
+  # ── PostgreSQL ────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: \${DB_USER:-appuser}
+      POSTGRES_PASSWORD: \${DB_PASS:-changeme}
+      POSTGRES_DB: \${DB_NAME:-appdb}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL","pg_isready -U \${DB_USER:-appuser}"]
+      interval: 10s; timeout: 5s; retries: 5; start_period: 10s
+    networks: [appnet]
+    deploy:
+      resources:
+        limits: {memory: 256m, cpus: '0.5'}`;
+  else if (db==='mysql') dbSvc=`
+  # ── MySQL ─────────────────────────────────────────────
+  db:
+    image: mysql:8.3
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: \${DB_ROOT_PASS:-rootpass}
+      MYSQL_USER: \${DB_USER:-appuser}
+      MYSQL_PASSWORD: \${DB_PASS:-changeme}
+      MYSQL_DATABASE: \${DB_NAME:-appdb}
+    volumes: [db_data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD","mysqladmin","ping","-h","localhost","-u","root","-p\${DB_ROOT_PASS:-rootpass}"]
+      interval: 10s; timeout: 5s; retries: 5
+    networks: [appnet]`;
+  else if (db==='mongodb') dbSvc=`
+  # ── MongoDB ───────────────────────────────────────────
+  db:
+    image: mongo:7.0
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: \${DB_USER:-appuser}
+      MONGO_INITDB_ROOT_PASSWORD: \${DB_PASS:-changeme}
+    volumes: [db_data:/data/db]
+    healthcheck:
+      test: ["CMD","mongosh","--eval","db.adminCommand('ping')"]
+      interval: 10s; timeout: 5s; retries: 5
+    networks: [appnet]`;
+
+  let redisSvc='';
+  if (useRedis) redisSvc=`
+  # ── Redis ─────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru --requirepass \${REDIS_PASS:-}
+    volumes: [redis_data:/data]
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      interval: 10s; timeout: 3s; retries: 5
+    networks: [appnet]`;
+
+  const depBlock = (R.dbs.length||useRedis)
+    ? `    depends_on:\n${R.dbs.length?'      db:\n        condition: service_healthy\n':''}${useRedis?'      redis:\n        condition: service_healthy\n':''}`
+    : '';
+  const hasVols = R.dbs.length||useRedis||R.volumes.length;
+
+  return `# docker-compose.yml — ${R.display}${R.framework?' · '+R.framework:''}
+# Commands:
+#   Start:   docker compose up -d
+#   Rebuild: docker compose up -d --build
+#   Logs:    docker compose logs -f app
+#   Shell:   docker compose exec app sh
 
 version: "3.9"
 
 services:
+
+  # ── Application ───────────────────────────────────────
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    image: \${APP_NAME:-myapp}:latest
+      target: runtime
+      args:
+        - APP_VERSION=\${APP_VERSION:-1.0.0}
+    image: \${APP_NAME:-myapp}:\${APP_VERSION:-latest}
     container_name: \${APP_NAME:-myapp}
     restart: unless-stopped
     ports:
-      - "\${PORT:-${s.port}}:${s.port}"
+      - "\${HOST_PORT:-${R.port}}:${R.port}"
+    env_file: [.env]
     environment:
       - NODE_ENV=\${NODE_ENV:-production}
-    env_file:
-      - .env.example   # rename to .env with real values
-    healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:${s.port}/health"]
+${R.dbs.length?`      - DATABASE_URL=\${DATABASE_URL}\n`:''}${useRedis?`      - REDIS_URL=redis://:${R.cache.includes('redis')?'\\${REDIS_PASS:-}@':''}redis:6379\n`:''}    healthcheck:
+      test: ["CMD","wget","-qO-","http://localhost:${R.port}${R.healthPath}"]
       interval: 30s
-      timeout: 5s
+      timeout: 10s
       retries: 3
-      start_period: 10s
-    networks:
-      - app-network
+      start_period: ${R.healthStart||15}s
+${depBlock}    networks: [appnet]
+${volLines ? '    volumes:\n' + volLines + '\n' : ''}\
+    deploy:
+      resources:
+        limits:
+          memory: ${R.memLimit}
+          cpus: '${R.cpuLimit}'
+      restart_policy:
+        condition: on-failure
+        max_attempts: 3
+${dbSvc}${redisSvc}${workerSvc}
 
-  # ── Optional: Nginx reverse proxy ─────────────────
+  # ── Optional: Nginx reverse proxy ────────────────────
   # nginx:
-  #   image: nginx:alpine
-  #   ports:
-  #     - "80:80"
+  #   image: nginx:1.27-alpine
+  #   ports: ["80:80","443:443"]
   #   volumes:
-  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf
-  #   depends_on:
-  #     - app
-  #   networks:
-  #     - app-network
-
-  # ── Optional: PostgreSQL database ─────────────────
-  # db:
-  #   image: postgres:16-alpine
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_USER: \${DB_USER:-user}
-  #     POSTGRES_PASSWORD: \${DB_PASS:-password}
-  #     POSTGRES_DB: \${DB_NAME:-appdb}
-  #   volumes:
-  #     - db_data:/var/lib/postgresql/data
-  #   networks:
-  #     - app-network
-
-  # ── Optional: Redis cache ──────────────────────────
-  # redis:
-  #   image: redis:7-alpine
-  #   restart: unless-stopped
-  #   networks:
-  #     - app-network
+  #     - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+  #     - ./certs:/etc/nginx/certs:ro
+  #   depends_on: [app]
+  #   networks: [appnet]
 
 networks:
-  app-network:
+  appnet:
     driver: bridge
 
-# volumes:
-#   db_data:
+${hasVols ? `volumes:\n${R.dbs.length ? '  db_data:\n' : ''}${useRedis ? '  redis_data:\n' : ''}${R.volumes.map(v=>`  ${v.split(':')[0]}:`).join('\n')}\n` : ''}`;
+}
+
+/* ═══════════════════════════════════════════════════════
+   📄 DOCKERIGNORE GENERATOR
+   ═══════════════════════════════════════════════════════ */
+function mkIgnore(R) {
+  const sections = [
+    ['Version control',   ['.git/','.gitignore','.github/','.svn/','.hg/']],
+    ['Docker',            ['Dockerfile*','docker-compose*.yml','docker-compose*.yaml','.dockerignore']],
+    ['Secrets',           ['.env','.env.*','!.env.example','*.pem','*.key','*.cert','secrets/']],
+    ['OS / editors',      ['.DS_Store','Thumbs.db','.idea/','.vscode/','*.swp','*~','*.orig']],
+    ['Docs / misc',       ['*.md','README*','LICENSE*','CHANGELOG*','docs/','*.log','logs/','tmp/','temp/']],
+    ['CI / CD',           ['.github/','.gitlab-ci.yml','.travis.yml','Jenkinsfile','.circleci/','*.yml','!docker-compose*.yml']],
+    ['Tests',             ['test/','tests/','spec/','__tests__/','*.test.*','*.spec.*','coverage/','.nyc_output/','*.lcov']],
+    ['Dev tools',         ['Makefile','*.sh','!entrypoint.sh','scripts/','tools/','examples/']],
+  ];
+  const stacks = {
+    node:   ['node_modules/','.npm/','.pnpm-store/','dist/','build/','out/','.next/','.nuxt/','nuxt/.output/','.turbo/','.svelte-kit/','*.tsbuildinfo','.eslintcache','.stylelintcache','coverage/','storybook-static/','*.snap'],
+    python: ['__pycache__/','*.pyc','*.pyo','*.pyd','.Python','.venv/','venv/','env/','ENV/','.tox/','*.egg-info/','.eggs/','dist/','build/','htmlcov/','.mypy_cache/','.pytest_cache/','.ruff_cache/','.hypothesis/','.benchmarks/'],
+    java:   ['target/','.mvn/','.gradle/','build/','out/','*.class','*.jar','!app.jar','*.war','*.ear','*.nar','.classpath','.project','.settings/','bin/'],
+    go:     ['vendor/','bin/','*.exe','*.exe~','*.dll','*.so','*.dylib','*.test','*.out','.cache/'],
+    php:    ['vendor/','storage/logs/','bootstrap/cache/','*.cache','.php_cs.cache','_ide_helper*.php','public/storage'],
+    ruby:   ['.bundle/','vendor/bundle/','coverage/','log/','tmp/','.byebug_history','public/assets','public/packs'],
+    rust:   ['target/','**/*.rs.bk'],
+    dotnet: ['bin/','obj/','.vs/','*.user','*.suo','TestResults/','packages/'],
+    cpp:    ['build/','*.o','*.a','*.out','*.exe','CMakeFiles/','CMakeCache.txt','cmake_install.cmake'],
+    deno:   ['.deno/'],
+  };
+
+  const L=[];
+  sections.forEach(([t,items]) => { L.push(`# ── ${t} ${'─'.repeat(Math.max(0,40-t.length))}`); items.forEach(i=>L.push(i)); L.push(''); });
+  const sk = stacks[R.stack];
+  if (sk) { L.push(`# ── ${R.display} ${'─'.repeat(Math.max(0,40-R.display.length))}`); sk.forEach(i=>L.push(i)); L.push(''); }
+  return L.join('\n');
+}
+
+/* ═══════════════════════════════════════════════════════
+   📄 ENV EXAMPLE GENERATOR
+   ═══════════════════════════════════════════════════════ */
+function mkEnvExample(R) {
+  const L=[
+    `# .env.example — copy to .env and fill in real values`,
+    `# NEVER commit your real .env to git`,
+    ``,
+    `# ── Application ──────────────────────────────────`,
+    `APP_NAME=myapp`,
+    `APP_VERSION=1.0.0`,
+    `APP_DESCRIPTION=My Application`,
+    `GIT_REPO=https://github.com/your-org/your-repo`,
+    ``,
+    `# ── Server ─────────────────────────────────────────`,
+    `NODE_ENV=production`,
+    `HOST_PORT=${R.port}`,
+    ``,
+  ];
+
+  if (R.dbs.includes('postgresql')) L.push('# ── PostgreSQL ───────────────────────────────────','DATABASE_URL=postgresql://appuser:changeme@db:5432/appdb','DB_USER=appuser','DB_PASS=changeme','DB_NAME=appdb','DB_ROOT_PASS=rootpass','');
+  else if (R.dbs.includes('mysql')) L.push('# ── MySQL ────────────────────────────────────────','DATABASE_URL=mysql://appuser:changeme@db:3306/appdb','DB_USER=appuser','DB_PASS=changeme','DB_ROOT_PASS=rootpass','DB_NAME=appdb','');
+  else if (R.dbs.includes('mongodb')) L.push('# ── MongoDB ──────────────────────────────────────','MONGODB_URI=mongodb://appuser:changeme@db:27017/appdb?authSource=admin','DB_USER=appuser','DB_PASS=changeme','DB_NAME=appdb','');
+
+  if (R.cache.includes('redis')) L.push('# ── Redis ────────────────────────────────────────','REDIS_URL=redis://:${REDIS_PASS}@redis:6379','REDIS_PASS=changeme','');
+
+  if (R.envVars.length) {
+    L.push('# ── From your project (.env.example) ─────────────');
+    R.envVars.forEach(k => { const v=R.envVals[k]||''; const safe=/secret|password|key|token|pass|private/i.test(k)?'CHANGE_ME':v; L.push(`${k}=${safe}`); });
+    L.push('');
+  }
+
+  L.push('# ── Security ─────────────────────────────────────','SECRET_KEY=generate_a_random_string_here','JWT_SECRET=your_jwt_secret_here','JWT_EXPIRY=7d','');
+  if (R.stack==='node'&&R.nodeOptions) { L.push('# ── Node.js performance ──────────────────────────',`NODE_OPTIONS=${R.nodeOptions}`,''); }
+  if (R.stack==='java') L.push('# ── JVM ───────────────────────────────────────────',`JAVA_OPTS=${R.jvmFlags}`,'');
+
+  return L.join('\n');
+}
+
+/* ═══════════════════════════════════════════════════════
+   📄 MAKEFILE GENERATOR
+   ═══════════════════════════════════════════════════════ */
+function mkMakefile(R) {
+  const app = '$(APP_NAME)';
+  return `# Makefile — ${R.display}${R.framework?' · '+R.framework:''}
+APP_NAME ?= myapp
+APP_VERSION ?= 1.0.0
+PORT ?= ${R.port}
+
+.PHONY: build run stop logs shell clean test lint help
+
+## build   : Build Docker image
+build:
+\tdocker build -t $(APP_NAME):$(APP_VERSION) .
+\tdocker tag $(APP_NAME):$(APP_VERSION) $(APP_NAME):latest
+
+## up      : Start with compose
+up:
+\tdocker compose up -d
+
+## down    : Stop compose
+down:
+\tdocker compose down
+
+## rebuild : Rebuild and restart
+rebuild:
+\tdocker compose up -d --build
+
+## logs    : Tail app logs
+logs:
+\tdocker compose logs -f app
+
+## shell   : Open shell in running container
+shell:
+\tdocker compose exec app sh
+
+## ps      : Show running containers
+ps:
+\tdocker compose ps
+
+## clean   : Remove containers, images, volumes
+clean:
+\tdocker compose down -v --rmi local
+\tdocker image prune -f
+
+## push    : Push image to registry
+push:
+\tdocker push $(APP_NAME):$(APP_VERSION)
+
+## prune   : Free up Docker space
+prune:
+\tdocker system prune -af --volumes
+
+## help    : Show this help
+help:
+\t@grep -E '^## ' Makefile | sed 's/## //'
 `;
 }
 
-function buildIgnore(s) {
-  const common = [
-    '# ── Version control ──────────────────────',
-    '.git/', '.gitignore', '.github/', '.svn/',
-    '', '# ── Environment & secrets ───────────────',
-    '.env', '.env.*', '*.pem', '*.key', '*.cert',
-    '', '# ── Docker files ────────────────────────',
-    'Dockerfile*', 'docker-compose*.yml', '.dockerignore',
-    '', '# ── Docs & misc ─────────────────────────',
-    '*.md', 'LICENSE', '*.log', 'logs/', 'tmp/', '.DS_Store', 'Thumbs.db',
-  ];
+/* ═══════════════════════════════════════════════════════
+   UI RENDERING
+   ═══════════════════════════════════════════════════════ */
+function renderCard(R) {
+  show('ic');
+  document.getElementById('ico').textContent = R.icon;
+  document.getElementById('inam').textContent = R.display + (R.framework?' · '+R.framework:'');
+  document.getElementById('isub').textContent = `${R.buildImg}  →  ${R.baseImg}`;
 
-  const extras = {
-    node:   ['', '# ── Node.js ─────────────────────────────', 'node_modules/', 'dist/', 'build/', '.npm', '.eslintcache', 'coverage/', '*.test.js', '*.spec.js', '.next/', '.nuxt/'],
-    python: ['', '# ── Python ──────────────────────────────', '__pycache__/', '*.pyc', '*.pyo', '.venv/', 'venv/', 'env/', '.pytest_cache/', '*.egg-info/', 'dist/', 'build/', '.mypy_cache/'],
-    java:   ['', '# ── Java ────────────────────────────────', 'target/', '*.class', '.mvn/', '.gradle/', 'build/'],
-    go:     ['', '# ── Go ──────────────────────────────────', 'vendor/', '*.exe', '*.test', 'bin/'],
-    php:    ['', '# ── PHP ─────────────────────────────────', 'vendor/', '*.cache', 'storage/logs/', 'bootstrap/cache/'],
-    ruby:   ['', '# ── Ruby ────────────────────────────────', '.bundle/', 'vendor/bundle/', 'coverage/', 'log/', 'tmp/'],
-    rust:   ['', '# ── Rust ────────────────────────────────', 'target/', 'Cargo.lock'],
-    dotnet: ['', '# ── .NET ────────────────────────────────', 'bin/', 'obj/', '*.user', '.vs/'],
-  };
+  const pp = document.getElementById('iplls'); pp.innerHTML='';
+  const p = (t,c) => { const s=document.createElement('span'); s.className=`pill ${c}`; s.textContent=t; pp.appendChild(s); };
+  if (R.langVer)                p(R.langVer,'pt');
+  if (R.pkgMgr)                 p(R.pkgMgr,'pb');
+  if (R.isMulti)                p('multi-stage','pg');
+  if (R.isStatic)               p('static+nginx','pb');
+  if (R.isTS)                   p('TypeScript','pb');
+  if (R.isMonorepo)             p('monorepo','pw');
+  if (R.useDistroless)          p('distroless','pg');
+  if (R.hasWorker)              p('worker','pp');
+  R.dbs.forEach(d => p(d,'pw'));
+  R.cache.forEach(c => p(c,'pr'));
+  if (R.services.includes('graphql')) p('graphql','pp');
+  if (R.services.includes('grpc'))    p('gRPC','pp');
+  if (R.services.includes('websockets')) p('websockets','pt');
+  p('non-root','pg'); p('healthcheck','pg'); p('OCI labels','pg');
+  if (R.portSource)             p('port from src','pg');
 
-  return [...common, ...(extras[s.stack] || [])].join('\n');
+  const ib = document.getElementById('ibody'); ib.innerHTML='';
+  const st = (l,v,c='') => { ib.innerHTML+=`<div class="istat"><div class="islbl">${l}</div><div class="isval ${c}">${v||'—'}</div></div>`; };
+  st('PORT', R.port, 'a');
+  st('PORT SOURCE', R.portSource||'default', R.portSource?'g':'');
+  st('PKG MANAGER', R.pkgMgr);
+  st('RUNTIME', R.baseImg.split('/').pop(), 'b');
+  st('BUILD IMAGE', R.buildImg.split('/').pop());
+  st('DATABASES', R.dbs.join(', ')||'none', R.dbs.length?'w':'');
+  st('CACHE', R.cache.join(', ')||'none', R.cache.length?'pr':'');
+  st('ENV VARS', R.envVars.length||'0', 'a');
+  st('MEMORY LIMIT', R.memLimit, 'w');
+  st('NATIVE DEPS', R.sysDeps.length ? R.sysDeps.join(', ') : 'none', R.sysDeps.length?'p':'');
+  st('WORKERS', R.hasWorker?'detected':'none', R.hasWorker?'p':'');
+  st('VOLUMES', R.volumes.length||'0', R.volumes.length?'b':'');
 }
 
-/* ═══════════════════════════════════════════════════════════
-   AI GENERATION  (Claude API)
-   ═══════════════════════════════════════════════════════════ */
-async function generateWithAI(stack, contents, filePaths) {
-  const fileList = filePaths.slice(0, 80).join('\n');
-  const keyFileDump = Object.entries(contents)
-    .slice(0, 6)
-    .map(([name, text]) => `\n### ${name}\n\`\`\`\n${text.slice(0, 800)}\n\`\`\``)
-    .join('');
-
-  const prompt = `You are a senior DevOps engineer. Generate production-ready Docker files for this project.
-
-**Detected Stack:** ${stack.display} (${stack.stack})${stack.framework ? ` using ${stack.framework}` : ''}
-**Default Port:** ${stack.port}
-**Start Command:** ${stack.startCmd}
-
-**Project file tree (first 80 files):**
-\`\`\`
-${fileList}
-\`\`\`
-
-**Key config files:**
-${keyFileDump}
-
-Generate exactly these 3 files. Use XML tags.
-
-<DOCKERFILE>
-(complete Dockerfile — multi-stage if compiled, single-stage if interpreted, non-root user, healthcheck, best practices)
-</DOCKERFILE>
-
-<COMPOSE>
-(complete docker-compose.yml — with app service, optional nginx/db/redis commented out, healthcheck, env_file)
-</COMPOSE>
-
-<IGNORE>
-(complete .dockerignore for this stack)
-</IGNORE>
-
-Rules:
-- Use lightweight base images (alpine/slim)
-- Add healthcheck using wget
-- Non-root user (addgroup/adduser)
-- Layer caching (copy dependency files before source)
-- No explanations, only the file content inside tags`;
-
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 4096,
-      messages: [{ role: 'user', content: prompt }],
-    }),
+function renderInsights(R) {
+  const box = document.getElementById('insightsBox');
+  box.innerHTML='';
+  if (!R.insights.length) return;
+  show('insightsBox');
+  R.insights.forEach(i => {
+    const d=document.createElement('div');
+    d.className=`insight ${i.type}`;
+    const icons={warn:'⚠',info:'ℹ',good:'✔',crit:'🚨'};
+    d.innerHTML=`<span class="iic">${icons[i.type]||'•'}</span><span>${i.text}</span>`;
+    box.appendChild(d);
   });
-
-  if (!response.ok) {
-    const err = await response.json().catch(() => ({}));
-    throw new Error(err.error?.message || `HTTP ${response.status}`);
-  }
-
-  const data = await response.json();
-  const text = data.content[0]?.text || '';
-
-  const extract = (tag) => {
-    const m = text.match(new RegExp(`<${tag}>([\\s\\S]*?)<\\/${tag}>`));
-    return m ? m[1].trim() : null;
-  };
-
-  generatedFiles.dockerfile = extract('DOCKERFILE') || buildDockerfile(stack);
-  generatedFiles.compose    = extract('COMPOSE')    || buildCompose(stack);
-  generatedFiles.ignore     = extract('IGNORE')     || buildIgnore(stack);
-  populateOutput();
 }
 
-/* ═══════════════════════════════════════════════════════════
-   UI HELPERS
-   ═══════════════════════════════════════════════════════════ */
-function populateOutput() {
-  setCode('dockerfileCode', generatedFiles.dockerfile);
-  setCode('composeCode',    generatedFiles.compose);
-  setCode('ignoreCode',     generatedFiles.ignore);
+function renderOutput(R) {
+  setTxt('o-df', R.dockerfile);
+  setTxt('o-dc', R.compose);
+  setTxt('o-di', R.ignore);
+  setTxt('o-ev', R.envex);
+  setTxt('o-mk', R.makefile);
   Prism.highlightAll();
+  show('ow');
+  show('dlbar');
 }
 
-function setCode(id, text) {
-  document.getElementById(id).textContent = text;
+function setTxt(id,v){ document.getElementById(id).textContent=v; }
+function show(id){ document.getElementById(id).classList.add('on'); }
+
+function tab(n) {
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',['df','dc','di','ev','mk'][i]===n));
+  document.querySelectorAll('.tpanel').forEach(p=>p.classList.remove('on'));
+  document.getElementById(`tp-${n}`).classList.add('on');
 }
 
-function showStackCard(s) {
-  const card = document.getElementById('stackCard');
-  card.classList.add('active', 'fade-in');
-  document.getElementById('stackIcon').textContent = s.icon;
-  document.getElementById('stackName').textContent = s.display + (s.framework ? ' · ' + s.framework : '');
-  document.getElementById('stackMeta').textContent = `Base: ${s.baseImage} · Port: ${s.port}`;
-
-  const pills = document.getElementById('stackPills');
-  pills.innerHTML = '';
-  const add = (label, cls) => {
-    const p = document.createElement('span');
-    p.className = `pill ${cls}`; p.textContent = label;
-    pills.appendChild(p);
-  };
-  add(`port ${s.port}`, 'cyan');
-  if (s.buildCmd)  add('multi-stage build', 'purple');
-  add('non-root user', 'green');
-  add('healthcheck', 'green');
-  add('layer cache', 'yellow');
-}
-
-function showOutput() {
-  const out = document.getElementById('outputSection');
-  out.classList.add('active', 'fade-in');
-  document.getElementById('bottomActions').classList.add('active', 'fade-in');
-}
-
-function showScanPanel(show) {
-  document.getElementById('scanningPanel').classList.toggle('active', show);
-}
-
-function setProgress(pct) {
-  document.getElementById('progressFill').style.width = pct + '%';
-}
-
-function addLog(type, icon, html) {
-  const log = document.getElementById('scanLog');
-  const line = document.createElement('div');
-  line.className = `line ${type}`;
-  line.innerHTML = `<span class="icon">${icon}</span><span>${html}</span>`;
-  log.appendChild(line);
-  log.scrollTop = log.scrollHeight;
-}
-
-function switchTab(name) {
-  document.querySelectorAll('.tab').forEach((t, i) => {
-    t.classList.toggle('active', ['dockerfile','compose','ignore'][i] === name);
-  });
-  document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
-  document.getElementById(`tab-${name}`).classList.add('active');
-}
-
-/* ── Copy & Download ── */
-function copyCode(id, btn) {
-  const text = document.getElementById(id).textContent;
-  navigator.clipboard.writeText(text).then(() => {
-    btn.textContent = '✔ Copied!';
-    btn.classList.add('copied');
-    setTimeout(() => { btn.textContent = '📋 Copy'; btn.classList.remove('copied'); }, 2000);
+function cp(id,btn) {
+  navigator.clipboard.writeText(document.getElementById(id).textContent).then(()=>{
+    btn.textContent='✔ Copied!'; btn.classList.add('ok');
+    setTimeout(()=>{btn.textContent='📋 Copy';btn.classList.remove('ok');},2200);
   });
 }
-
-function downloadFile(filename, id) {
-  const text = document.getElementById(id).textContent;
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-  a.download = filename;
-  a.click();
-  showToast(`⬇ Downloaded ${filename}`, 'success');
+function dl(name,id) {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([document.getElementById(id).textContent],{type:'text/plain'}));
+  a.download=name; a.click();
+  showToast(`⬇ ${name} saved`,'suc');
+}
+async function dlAll() {
+  const files=[['Dockerfile','o-df'],['docker-compose.yml','o-dc'],['.dockerignore','o-di'],['.env.example','o-ev'],['Makefile','o-mk']];
+  const zip=new JSZip();
+  files.forEach(([n,id])=>zip.file(n,document.getElementById(id).textContent));
+  const blob=await zip.generateAsync({type:'blob'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='docker-files.zip'; a.click();
+  showToast('✔ docker-files.zip — all 5 files','suc');
 }
 
-function downloadAll() {
-  const files = [
-    { name: 'Dockerfile',         id: 'dockerfileCode' },
-    { name: 'docker-compose.yml', id: 'composeCode' },
-    { name: '.dockerignore',      id: 'ignoreCode' },
-  ];
-  let i = 0;
-  const next = () => {
-    if (i >= files.length) { showToast('✔ All 3 files downloaded!', 'success'); return; }
-    const { name, id } = files[i++];
-    const text = document.getElementById(id).textContent;
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
-    a.download = name; a.click();
-    setTimeout(next, 400);
-  };
-  next();
+function regen() {
+  if(!G.stack) return;
+  G.dockerfile=mkDockerfile(G); G.compose=mkCompose(G);
+  G.ignore=mkIgnore(G); G.envex=mkEnvExample(G); G.makefile=mkMakefile(G);
+  renderOutput(G);
+  showToast('⟳ Regenerated','suc');
 }
 
-function regenerate() {
-  if (!detectedStack.stack) return;
-  if (apiKey) {
-    showToast('⟳ Re-generating with AI…', 'success');
-    generateWithAI(detectedStack, {}, []).then(populateOutput);
-  } else {
-    generateLocally(detectedStack);
-    showToast('⟳ Files regenerated', 'success');
-  }
+function reset() {
+  ['sp','ic','insightsBox','ow','dlbar'].forEach(id=>{document.getElementById(id).classList.remove('on');});
+  document.getElementById('slog').innerHTML='';
+  document.getElementById('bfill').style.width='0%';
+  document.getElementById('sptitle').textContent='Scanning…';
+  const s=document.getElementById('spspin'); s.style.display=''; s.className='spin';
+}
+function resetAll() {
+  reset(); G={};
+  document.getElementById('fi').value='';
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
-function resetOutput() {
-  document.getElementById('scanLog').innerHTML = '';
-  document.getElementById('progressFill').style.width = '0%';
-  document.getElementById('scanTitle').textContent = 'Scanning project…';
-  document.getElementById('scanSpinner').style.display = '';
-  document.getElementById('stackCard').className = 'stack-card';
-  document.getElementById('outputSection').className = 'output-section';
-  document.getElementById('bottomActions').className = 'bottom-actions';
+function prog(p){document.getElementById('bfill').style.width=p+'%'}
+function slog(cls,ic,html){
+  const el=document.getElementById('slog');
+  el.innerHTML+=`<div class="row ${cls}"><span class="ic">${ic}</span><span>${html}</span></div>`;
+  el.scrollTop=el.scrollHeight;
 }
-
-function resetApp() {
-  resetOutput();
-  showScanPanel(false);
-  document.getElementById('fileInput').value = '';
-  generatedFiles = {}; detectedStack = {};
-  window.scrollTo({ top: 0, behavior: 'smooth' });
-}
-
-/* ── Toast ── */
-function showToast(msg, type = 'success') {
-  const t = document.getElementById('toast');
-  t.textContent = msg;
-  t.className = `toast ${type} show`;
-  setTimeout(() => t.classList.remove('show'), 3000);
-}
-
-/* ── Util ── */
-function formatSize(bytes) {
-  if (bytes < 1024) return bytes + ' B';
-  if (bytes < 1048576) return (bytes/1024).toFixed(1) + ' KB';
-  return (bytes/1048576).toFixed(1) + ' MB';
+function fmtSz(b){if(b<1024)return b+' B';if(b<1048576)return(b/1024).toFixed(1)+' KB';return(b/1048576).toFixed(1)+' MB';}
+function showToast(msg,type='suc'){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`toast ${type} show`;
+  setTimeout(()=>t.classList.remove('show'),3200);
 }
 </script>
 </body>

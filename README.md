@@ -1,293 +1,304 @@
 # 🐳 Captain Container
 
-> Your personal DevOps assistant — available as both a **desktop app** (drag & drop)
-> and a **terminal tool** (command line).
-> Drop in your project, get production-ready Docker files in seconds.
+> Your personal DevOps assistant — drag and drop your project ZIP,
+> get five production-ready Docker files in seconds.
+> Runs 100% locally. No internet. No API key. No cloud.
 
 ---
 
-## 📁 Your Folder Should Look Like This
+## 📁 Your Folder
 
 ```
 captain-container/
 │
-├── captain-container-app.html   ← Desktop App  (open in browser, drag & drop)
-├── containerize.py              ← Terminal Tool (run in command line)
+├── captain-container-app.html   ← The app (open in browser)
+├── containerize.py              ← Terminal tool (optional, run with python3)
 ├── README.md                    ← This file
 │
-└── sample-output/               ← Example generated files (just for reference)
+└── sample-output/               ← Reference examples only
     ├── Dockerfile
     ├── docker-compose.yml
     ├── .dockerignore
     └── README.docker.md
 ```
 
-You have **two ways** to use Captain Container — pick whichever feels easier:
-
-| | Desktop App | Terminal Tool |
-|--|-------------|---------------|
-| **How to open** | Double-click the `.html` file | Run `python3 containerize.py` |
-| **How to use** | Drag & drop your project `.zip` | Answer questions in terminal |
-| **Best for** | Visual experience, quick scans | Automation, scripts, CI |
-| **Needs Python?** | ❌ No | ✅ Yes |
-| **AI support?** | ✅ Yes (with API key) | ❌ Not yet |
-
 ---
 
 ## ✅ Requirements
 
-| Requirement | Needed for | How to check | How to install |
-|-------------|-----------|-------------|----------------|
-| Any browser (Chrome, Firefox) | Desktop App | — | Already installed |
-| Python 3.6+ | Terminal Tool | `python3 --version` | `sudo apt install python3` |
-| Docker | Building/running containers | `docker --version` | [docs.docker.com/get-docker](https://docs.docker.com/get-docker/) |
-
-> **Note:** Docker is only needed if you want to actually *build and run* your container.
-> Both tools generate the files without Docker installed.
+| What | Needed for | Check |
+|------|-----------|-------|
+| Chrome or Firefox | Desktop app | Already installed |
+| Python 3.6+ | Terminal tool only | `python3 --version` |
+| Docker | Building/running containers | `docker --version` |
 
 ---
 ---
 
-# 🖥️ PART 1 — Desktop App
-
-## What Is the Desktop App?
-
-The desktop app is a single HTML file you open in your browser — no installation,
-no setup, no internet needed (unless you use AI mode). It lives fully on your computer.
-
-You zip your project → drag it into the app window → it scans everything inside
-the zip → and generates three ready-to-use Docker files you can download.
-
----
+# 🖥️ PART 1 — Desktop App (Drag & Drop)
 
 ## How to Open It
 
 ```bash
-# Option A — Double-click the file in your file manager
-
-# Option B — From terminal:
+# Double-click in your file manager, OR:
 xdg-open ~/Desktop/captain-container/captain-container-app.html
-
-# Option C — Drag the file into any open browser window
 ```
 
----
-
-## How to Use It — Step by Step
+## How to Use It
 
 ### Step 1 — Zip your project
-
-Open a terminal, go into your project folder, and create a zip:
-
 ```bash
-cd /home/yourname/my-project
+cd /path/to/your-project
 zip -r my-project.zip .
 ```
 
-This creates `my-project.zip` inside your project folder.
+### Step 2 — Drop the zip into the app
+Open the HTML file in your browser and drag `my-project.zip` onto the drop area.
 
-### Step 2 — Open the app and drop the zip
-
-Open `captain-container-app.html` in your browser.
-Drag `my-project.zip` onto the dashed drop area — or click **Browse Files** to pick it.
-
-### Step 3 — Watch it scan
-
-The app reads every file inside your zip and logs what it finds:
-
-```
-→ Reading package.json
-→ Reading requirements.txt
-✔ Found 47 files
-✔ Detected: Node.js · Express.js
-→ Port: 3000  |  Start: npm start
-✨ Generating Docker files...
-```
-
-### Step 4 — Download your files
-
-Three tabs appear at the bottom: **Dockerfile**, **docker-compose.yml**, **.dockerignore**.
-Click each tab to see the file. Use the buttons to:
-- **Copy** — copies the file content to your clipboard
-- **Download** — saves just that one file
-- **Download All Files** — saves all three at once
-
-Drop those files into your project folder and you're done.
+### Step 3 — Download your files
+Five tabs appear. Download each file or click **Download All 5 Files as ZIP**.
+Put all files into your project's root folder.
 
 ---
 
 ## Every Section of the App Explained
 
-### 🔵 The Drop Zone (top, dashed border)
+### 🔵 The Drop Zone
+Drag your `.zip` here or click **Browse Files**. The border glows when a file is dragged over it.
+Only `.zip` files are accepted.
 
-This is the main area. Drag your `.zip` file here or click **Browse Files**.
-The border glows cyan when you drag a file over it — that means it's ready to accept.
-Only `.zip` files are accepted. Any size is fine.
+### 🟦 Scanning Panel
+A live log of exactly what the engine is doing — how many files it found,
+which config files it read, whether it scanned your source code for port numbers,
+and what it detected at each step.
 
----
+### 🟩 Detected Stack Card
+Shows everything the engine figured out:
 
-### 🟣 AI-Powered Mode Banner (purple section at the top)
+| Field | What it shows |
+|-------|--------------|
+| Stack name | e.g. "Python · FastAPI" |
+| Build image | The Docker image used during build stage |
+| Runtime image | The lean final image your container actually runs |
+| Port | The port your app listens on |
+| Port Source | **Where the port came from** — `source code`, `Procfile`, `.env file`, or `default` |
+| Pkg Manager | npm / yarn / pnpm / bun / pip / poetry / pipenv / uv / cargo / etc |
+| Databases | Detected from your dependency files |
+| Native Deps | System packages your code needs (libvips, imagemagick, etc) |
+| Workers | Background job workers detected |
+| Volumes | Writable paths detected (uploads/, storage/, etc) |
 
-```
-✨ AI-Powered Mode — Add your Anthropic API key for smarter, context-aware generation
-```
+**Feature pills** on the card show best practices applied:
+- `multi-stage` — two Docker stages so the final image is lean
+- `non-root` — container doesn't run as root
+- `healthcheck` — Docker polls your app every 30s
+- `OCI labels` — standard image metadata
+- `distroless` — no shell at all (Go and Rust only) — maximum security
+- `port from src` — port was read from your actual code, not guessed
+- `TypeScript` — compile step added
+- `worker` — separate worker service in compose
 
-**What this section is:**
-This banner lets you connect the app to Claude AI (made by Anthropic).
-When you add your key, instead of using fixed templates, the app sends your
-project's file list and key config files to Claude — which reads and understands
-your actual code before generating the Docker files.
+### 🔶 Insights Panel (appears when there's something important)
+Smart warnings and confirmations specific to your project:
 
-**Without API key (default):**
-The app uses smart built-in templates. It detects your stack, framework, port,
-and start command and generates correct, best-practice Docker files.
-Works great for 90% of projects. Nothing leaves your computer.
+| Color | Meaning |
+|-------|---------|
+| 🟢 Green (good) | Something was detected and handled correctly |
+| 🔵 Blue (info) | A note about something to be aware of |
+| 🟡 Yellow (warn) | Something needs your attention before deploying |
+| 🔴 Red (crit) | Security issue — action required |
 
-**With API key (AI mode):**
-Claude reads your actual `package.json`, `requirements.txt`, `pom.xml` etc.,
-understands your specific setup (e.g. "this is a Next.js 14 app with TypeScript,
-a custom server.js, running on port 3000") and generates files tailored to
-your exact project — not just your stack type.
+Examples of what it tells you:
+- `✔ Port 8000 confirmed by reading your source code — not just a default guess`
+- `✔ Start command taken from your Procfile`
+- `⚠ Database detected but no DATABASE_URL found in .env.example`
+- `⚠ Native module requires non-Alpine image — switched to bullseye-slim`
+- `🚨 .env is NOT in .gitignore — your secrets may be committed to git!`
+- `ℹ WebSockets detected — make sure your load balancer has upgrade headers`
+- `ℹ Background worker detected — compose includes a separate worker service`
 
-**How to get an API key:**
-1. Go to [console.anthropic.com](https://console.anthropic.com)
-2. Sign up or log in
-3. Go to **API Keys** → click **Create Key**
-4. Copy the key — it starts with `sk-ant-api03-...`
-5. Paste it into the input box in the purple banner
-6. Click **Save Key** — it saves in your browser, stays there after you close the app
-
-**When to use AI mode vs local templates:**
-
-| Situation | Recommendation |
-|-----------|---------------|
-| Standard Node / Python / Java / Go app | Local templates are fine |
-| Unusual project structure | AI mode |
-| Multiple languages in one project | AI mode |
-| Custom build pipeline | AI mode |
-| You just want it fast | Local templates |
-| You want maximum accuracy | AI mode |
-
----
-
-### 🟦 Scanning Panel (appears after you drop a zip)
-
-Shows a live log of what the app is doing step by step:
-- How many files it found in the zip
-- Which key config files it read
-- What stack and framework it detected
-- Whether it's using AI or local templates to generate
-
-The blue progress bar fills as it works through each step.
-
----
-
-### 🟩 Detected Stack Card (appears after scan)
-
-Shows what the app figured out about your project:
-- **Stack name** — e.g. "Node.js · Express.js"
-- **Base image** — the Docker image it chose, e.g. `node:20-alpine`
-- **Port** — the port your app runs on inside the container
-
-The coloured feature pills show which best practices are applied:
-- `multi-stage build` — uses two Docker stages so the final image is small
-- `non-root user` — container runs as a safe user, not as root
-- `healthcheck` — Docker automatically checks if your app is still alive
-- `layer cache` — dependencies are installed before copying code, so rebuilds are fast
-
-The **⟳ Re-generate** button regenerates all three files fresh without re-scanning.
-
----
-
-### 🗂️ Output Tabs — The Three Generated Files
+### 🗂️ The Five Output Tabs
 
 **Tab 1: 🐳 Dockerfile**
-The main recipe Docker uses to build your app into a container image.
-Contains: base image, dependency installation, code copy, port exposure,
-non-root user, healthcheck, and the command to start your app.
+The recipe for building your container. Includes:
+multi-stage build, dependency layer caching, non-root user, OCI labels,
+`STOPSIGNAL`, healthcheck, and smart start command.
 
 **Tab 2: ⚙️ docker-compose.yml**
-Lets you start your whole stack with one command: `docker compose up -d`.
-Includes your app service with port mapping, environment variable file support,
-healthcheck, and restart policy. Has commented-out ready-to-use templates for
-Nginx (reverse proxy), PostgreSQL (database), and Redis (cache).
-Just uncomment whatever you need.
+Start everything with `docker compose up -d`. Includes:
+your app service, auto-wired database (PostgreSQL/MySQL/MongoDB),
+Redis if detected, background worker service if detected,
+healthchecks on all services, memory/CPU limits, restart policy,
+volume mounts for persistent storage, and commented Nginx reverse proxy.
 
 **Tab 3: 🚫 .dockerignore**
-Tells Docker which files to skip when building the image.
-Automatically customised for your stack — for Node.js it excludes
-`node_modules/`, `dist/`, `.next/`, `coverage/` etc.
-Keeps your image small and prevents `.env` secrets from ending up inside it.
+Keeps your image small and prevents secrets from leaking into it.
+Customised per stack — excludes `node_modules/`, `__pycache__/`, `target/`, `.venv/`,
+test files, CI configs, logs, OS files, and dev tool artifacts.
+
+**Tab 4: 🔑 .env.example**
+Pre-filled with every environment variable the engine detected from your project —
+including database URLs (with the right format for your database), Redis URL,
+JWT fields, app name/version, and any vars found in your existing `.env.example`.
+Secret values are masked as `CHANGE_ME`.
+
+**Tab 5: ⚡ Makefile**
+Run common Docker operations with short commands:
+`make build`, `make up`, `make down`, `make rebuild`, `make logs`, `make shell`, `make clean`.
 
 ---
 
-### ⬇ Download All Files
+## What the Intelligence Engine Does (v3)
 
-Downloads all three files one after another with a short delay between each
-so your browser doesn't block them. Move all three into your project root folder.
+This is completely local. It reads your files and makes smart decisions.
 
-### ↺ Scan Another Project
+### It reads 40+ config files
+`.nvmrc`, `.node-version`, `.tool-versions`, `.python-version`, `runtime.txt`,
+`pyproject.toml`, `Pipfile`, `poetry.lock`, `go.sum`, `Cargo.lock`, `Gemfile.lock`,
+`application.properties`, `deno.json`, `.env.example`, `Procfile`, `nginx.conf`,
+`supervisord.conf`, `tsconfig.json`, `next.config.js`, `angular.json`, and more.
 
-Resets everything back to the drop zone so you can scan a different project.
+### It reads your actual source code
+For these files it scans the content to find real port numbers:
+`app.py`, `main.py`, `index.js`, `server.js`, `main.go`, `main.rs`, `app.rb`, `server.ts`, etc.
+
+It looks for patterns like:
+- `app.listen(3000)` — Node.js
+- `uvicorn.run(app, port=8000)` — Python
+- `http.ListenAndServe(":8080", ...)` — Go
+- `.bind("0.0.0.0:3000")` — Rust/Actix
+
+If it finds a port in your code, the card shows `port from src` and the insights panel confirms it.
+
+### It detects native system dependencies
+Some npm/pip packages need OS-level libraries to compile.
+The engine knows about this and adds the right `apk add` or `apt-get install` lines:
+
+| Package | System dep added |
+|---------|-----------------|
+| `sharp` (Node) | `vips-dev` |
+| `canvas` (Node) | `cairo-dev`, `pango-dev` |
+| `bcrypt` / `argon2` | `python3`, `make`, `g++` |
+| `Pillow` / `PIL` (Python) | `libjpeg-dev`, `libpng-dev` |
+| `lxml` (Python) | `libxml2-dev`, `libxslt-dev` |
+| `psycopg2` (Python, non-binary) | `libpq-dev` |
+| `puppeteer` | `chromium` + 6 deps |
+| `nokogiri` (Ruby) | `libxml2-dev`, `libxslt-dev` |
+| `ffmpeg` | `ffmpeg` |
+| `imagemagick` | `imagemagick` |
+
+### It switches base image when Alpine won't work
+Some packages (`sharp`, `canvas`, `puppeteer`) don't compile on Alpine Linux.
+The engine detects this and automatically switches from `node:20-alpine`
+to `node:20-bullseye-slim`, then shows a warning in the insights panel.
+
+### It parses your Procfile
+If you have a `Procfile` (Heroku-style), it reads the `web:` line and uses
+that as your start command. It reads the `worker:` line and adds a separate
+worker service to `docker-compose.yml`. No guessing.
+
+### It detects background workers
+If it finds Celery (Python), Sidekiq (Ruby), Bull/BullMQ (Node), or
+similar in your dependencies, it adds a separate worker service to
+`docker-compose.yml` with the right command.
+
+### It generates JVM flags for Java
+Instead of generic `java -jar app.jar`, it generates:
+```
+java -Xms256m -Xmx512m -XX:+UseContainerSupport -XX:MaxRAMPercentage=75.0 -jar app.jar
+```
+Container-aware memory settings that respect the memory limit you set.
+
+### It generates `NODE_OPTIONS` for large Node apps
+For frameworks like Next.js or Strapi that need more memory:
+```
+ENV NODE_OPTIONS="--max-old-space-size=768"
+```
+Set to 75% of the memory limit so Node doesn't OOM-kill itself.
+
+### It uses distroless runtime images for Go and Rust
+Go and Rust produce static binaries. The engine uses
+`gcr.io/distroless/static-debian12` (Go) and `gcr.io/distroless/cc-debian12` (Rust)
+as the runtime image. These have **no shell, no package manager, no OS tools** —
+just your binary. Smallest possible attack surface.
+
+### It detects volumes
+If your project has `uploads/`, `storage/`, `logs/` directories, it adds
+Docker named volumes in `docker-compose.yml` so those paths persist when the container restarts.
+
+### It checks your `.gitignore` for secrets
+If `.env` is not in your `.gitignore`, the insights panel shows a red critical warning.
+
+### Frameworks detected per stack (50+)
+
+| Stack | Frameworks |
+|-------|-----------|
+| Node.js | Next.js, Nuxt, Angular, React+Vite, Vue+Vite, SvelteKit, Astro, Remix, NestJS, Strapi, PayloadCMS, Express, Fastify, Koa, Hono, Hapi, Sails, Socket.IO |
+| Python | FastAPI, Litestar, Sanic, aiohttp, Tornado, Django, Flask, Starlette, Pyramid, Bottle, Falcon |
+| Java | Spring Boot, Quarkus, Micronaut, Helidon, Vert.x, Jakarta EE |
+| Go | Gin, Fiber, Echo, Chi, Gorilla Mux, Beego, Buffalo, go-kit |
+| PHP | Laravel, Symfony, Slim, CakePHP, Yii2, CodeIgniter, WordPress |
+| Ruby | Rails, Sinatra, Hanami, Padrino, Roda, Grape |
+| Rust | Actix-web, Axum, Rocket, Warp, Poem, Tide, ntex |
+
+### Package managers detected
+
+| Stack | Detected |
+|-------|---------|
+| Node.js | npm, yarn, pnpm, bun (from lockfiles) |
+| Python | pip, poetry, pipenv, pdm, uv, hatch |
+| Ruby | bundler |
+| Rust | cargo |
+| Java | maven, gradle |
+| PHP | composer |
+
+### Language version sources
+
+| Stack | Where version is read from |
+|-------|--------------------------|
+| Node.js | `.nvmrc`, `.node-version`, `.tool-versions`, `package.json engines.node` |
+| Python | `.python-version`, `runtime.txt`, `.tool-versions`, `pyproject.toml` |
+| Ruby | `Gemfile` (`ruby "3.3"`), `.ruby-version` |
+| Java | `pom.xml` (`<java.version>`), `build.gradle` (`sourceCompatibility`) |
+| Go | `go.mod` (`go 1.22`) |
+| .NET | `*.csproj` (`<TargetFramework>net8`) |
 
 ---
 
-## What the App Auto-Detects
+## Detected Stack → Generated Files
 
-| File found in zip | Detected as | Also reads inside for |
-|---|---|---|
-| `package.json` | Node.js | Next.js, React, Vue, Express, Fastify, Nuxt, Koa |
-| `requirements.txt` | Python | FastAPI, Flask, Django, Gunicorn, Tornado, aiohttp |
-| `pom.xml` | Java (Maven) | Spring Boot, Quarkus, Micronaut |
-| `build.gradle` | Java (Gradle) | Spring Boot |
-| `go.mod` | Go | Gin, Fiber, Echo, Chi |
-| `composer.json` | PHP | Laravel, Symfony, Slim |
-| `Gemfile` | Ruby | Rails, Sinatra |
-| `Cargo.toml` | Rust | Actix-web, Axum, Rocket |
-| `*.csproj` / `*.fsproj` | .NET | ASP.NET Core |
+| Your project has... | Dockerfile type | Runtime image | Compose includes |
+|--------------------|----------------|--------------|-----------------|
+| `package.json` + Next.js | Multi-stage + build | `node:20-alpine` | app |
+| `package.json` + React+Vite | Multi-stage + nginx | `nginx:1.27-alpine` | app |
+| `requirements.txt` + FastAPI | Single-stage | `python:3.12-slim` | app + optional db |
+| `pom.xml` + Spring Boot | Multi-stage | `eclipse-temurin:21-jre-alpine` | app + optional db |
+| `go.mod` + Gin | Multi-stage | `gcr.io/distroless/static-debian12` | app |
+| `Cargo.toml` + Axum | Multi-stage | `gcr.io/distroless/cc-debian12` | app |
+| `Gemfile` + Rails + Sidekiq | Multi-stage | `ruby:3.3-alpine` | app + sidekiq + redis |
+| Any + PostgreSQL dependency | Any | Any | app + postgres + volumes |
+| Any + Redis dependency | Any | Any | app + redis |
+| Any + Celery/Sidekiq/Bull | Any | Any | app + worker service |
 
 ---
 ---
 
 # 💻 PART 2 — Terminal Tool
 
-## What Is the Terminal Tool?
-
-`containerize.py` is a Python script that runs in your terminal.
-Instead of drag & drop, it walks you through a short conversation —
-asking questions and pre-filling answers it already detected.
-
-Good for: running from scripts, integrating into CI/CD, or if you prefer the terminal.
-
----
-
-## How to Run It
-
 ```bash
-# Step 1 — Go into your project folder
-cd /home/yourname/my-project
+# Go into your project
+cd /path/to/your-project
 
-# Step 2 — Run the tool
+# Run
 python3 ~/Desktop/captain-container/containerize.py
-```
 
-Press `ENTER` to accept any suggestion shown in `[brackets]`.
-
----
-
-## Other Useful Ways to Run It
-
-```bash
-# Point at a different folder
-python3 ~/Desktop/captain-container/containerize.py --dir /path/to/project
-
-# Dry run — shows config without writing any files
+# Options
+python3 ~/Desktop/captain-container/containerize.py --dir /other/project
 python3 ~/Desktop/captain-container/containerize.py --dry-run
 
-# Make it a global shortcut (type 'containerize' from anywhere)
+# Global shortcut
 chmod +x ~/Desktop/captain-container/containerize.py
 sudo ln -s ~/Desktop/captain-container/containerize.py /usr/local/bin/containerize
-containerize
 ```
 
 ---
@@ -295,328 +306,191 @@ containerize
 
 # 🐳 PART 3 — After the Files Are Generated
 
-Drop the three generated files into your project root, then:
+Put all 5 files into your project root, then:
 
 ```bash
-# Easiest way — Docker Compose
-docker compose up -d          # build and start
-docker compose down           # stop everything
-docker compose up -d --build  # rebuild after code changes
-docker compose logs -f        # watch logs live
+# Copy .env.example to .env and fill in real values
+cp .env.example .env
+nano .env
 
-# Or manual Docker commands
-docker build -t my-app .
-docker run -d -p 3000:3000 --name my-app my-app
-docker ps                     # check it's running
-docker logs -f my-app         # see logs
-docker stop my-app            # stop
-docker rm my-app              # remove
+# Start everything (builds automatically)
+docker compose up -d
+
+# Or use the generated Makefile
+make up
+make logs
+make shell
+make down
+make rebuild
+make clean
 ```
 
 ---
 ---
 
-# 🚀 PART 4 — How to Upgrade This Product in the Future
+# 🚀 PART 4 — How to Upgrade in the Future
 
-This section explains exactly how to add new features or improve the tool.
-Everything is plain HTML/JS and Python — no build tools, no npm install, nothing special.
-
----
-
-## The Two Files and What's Inside Them
-
-### `captain-container-app.html` — Desktop App Structure
+## File structure
 
 ```
-<style>  ← Visual design (colours, layout, animations) — edit to change appearance
-<body>   ← HTML structure (buttons, tabs, panels) — edit to add UI elements
-<script> ← All logic — edit to change how detection and generation works
+captain-container-app.html
+│
+├── <style>     ← All visual design — colours, layout, animations
+├── <body>      ← HTML structure — buttons, tabs, panels
+└── <script>
+    │
+    ├── analyse()              ← Master intelligence function
+    │   ├── Node.js block      ← All Node/framework/pkg detection
+    │   ├── Python block       ← All Python/framework/pkg detection
+    │   ├── Java block         ← Maven/Gradle/Spring/version detection
+    │   ├── Go block           ← go.mod parsing, framework, distroless
+    │   ├── ... (all stacks)
+    │   ├── ENV VAR section    ← Reads .env files across all stacks
+    │   ├── VOLUME section     ← Detects persistent paths
+    │   └── INSIGHTS section   ← Smart warnings and tips
+    │
+    ├── scanPortFromSource()   ← Reads source code for port numbers
+    ├── detectNodeNativeDeps() ← Maps npm packages to OS packages
+    ├── mkDockerfile()         ← Generates Dockerfile
+    ├── mkCompose()            ← Generates docker-compose.yml
+    ├── mkIgnore()             ← Generates .dockerignore
+    ├── mkEnvExample()         ← Generates .env.example
+    └── mkMakefile()           ← Generates Makefile
 ```
 
-**Key functions in `<script>`:**
+## Common upgrades
 
-| Function | What it does | Edit it to... |
-|---|---|---|
-| `detectStack()` | Reads file list, detects stack & framework | Add a new language |
-| `buildDockerfile()` | Generates Dockerfile from template | Improve Dockerfile output |
-| `buildCompose()` | Generates docker-compose.yml | Change compose structure |
-| `buildIgnore()` | Generates .dockerignore | Add more ignore patterns |
-| `generateWithAI()` | Sends data to Claude API | Change the AI prompt |
-| `handleZip()` | Main function triggered on file drop | Add new scan steps |
-| `downloadAll()` | Downloads all files at once | Add more output files |
-
-### `containerize.py` — Terminal Tool Structure
-
-| Function | What it does |
-|---|---|
-| `detect_stack()` | Scans files, returns stack info |
-| `ask_user_inputs()` | Interactive Q&A in terminal |
-| `generate_dockerfile()` | Writes Dockerfile to disk |
-| `generate_dockerignore()` | Writes .dockerignore to disk |
-| `generate_compose()` | Writes docker-compose.yml to disk |
-| `generate_readme()` | Writes README.docker.md to disk |
-| `offer_build_run()` | Builds and runs the Docker image |
-
----
-
-## Common Upgrades — Exactly How to Do Each One
-
----
-
-### ➕ Add Support for a New Language (e.g. Elixir)
-
-**In `captain-container-app.html`** — find `detectStack()` and add a new block:
-
+### Add a new language
+Find the large `if/else if` chain in `analyse()` and add a new block:
 ```javascript
-else if (hasFile('mix.exs')) {
-  stack = 'elixir'; display = 'Elixir'; icon = '💜';
-  port = '4000'; startCmd = 'mix phx.server';
-  buildCmd = 'mix deps.get && mix compile';
-  baseImage = 'elixir:1.16-alpine';
-  const mix = contents['mix.exs'] || '';
-  if (mix.includes('phoenix')) { framework = 'Phoenix'; }
+else if (hf('mix.exs')) {
+  R.stack='elixir'; R.display='Elixir'; R.icon='💜';
+  R.port='4000'; R.pkgMgr='mix';
+  R.buildImg='elixir:1.17-alpine'; R.baseImg='elixir:1.17-alpine';
+  R.startCmd='mix phx.server'; R.buildCmd='mix do deps.get, compile';
+  const mix=(C['mix.exs']||'').toLowerCase();
+  if(has(mix,'phoenix')) R.framework='Phoenix';
 }
 ```
+Then add to `mkIgnore()` stacks object: `elixir: ['_build/','deps/','*.beam']`
 
-Then add its ignore patterns in `buildIgnore()`:
-
+### Add a new Node.js framework
+Inside the Node.js block in `analyse()`, add to the framework chain:
 ```javascript
-elixir: ['', '# ── Elixir ──', '_build/', 'deps/', '.elixir_ls/'],
+else if (deps['hono']) { R.framework='Hono'; R.port='3000'; R.startCmd=sc[R.pkgMgr]; }
 ```
 
-**In `containerize.py`** — add to `STACK_RULES`, `BASE_IMAGES`, `DEFAULT_PORTS`,
-`DEFAULT_START`, and `DEFAULT_BUILD` dictionaries at the top of the file.
+### Add a native dep mapping
+In `detectNodeNativeDeps()`:
+```javascript
+if (has(dStr,'wkhtmltopdf')) R.sysDeps.push('wkhtmltopdf','xvfb');
+```
 
----
+### Change port scanning patterns
+In `scanPortFromSource()`, add a pattern to the right language's array:
+```javascript
+node: [
+  ...existing patterns...
+  /createApp\(\)\s*\.listen\(\s*(\d{3,5})/,  // custom pattern
+],
+```
 
-### 🎨 Change the Visual Design
+### Add a new insight
+At the bottom of `analyse()`, add to `R.insights`:
+```javascript
+if (R.framework === 'Django' && !has(allPy,'whitenoise'))
+  R.insights.push({type:'warn', text:'Django detected without whitenoise — static files may not serve in production'});
+```
+Types: `good` (green ✔), `info` (blue ℹ), `warn` (yellow ⚠), `crit` (red 🚨)
 
-Find the `:root { }` block near the top of `<style>` and edit the colour variables:
-
+### Change visual colours
+Edit the `:root {}` block at the top of `<style>`:
 ```css
 :root {
-  --bg:    #080c10;  /* main background */
-  --cyan:  #00e5ff;  /* primary accent colour */
-  --green: #3fb950;  /* success colour */
-  --text:  #e6edf3;  /* main text colour */
+  --bg:     #05070a;   /* main background */
+  --accent: #00d4aa;   /* primary teal accent */
+  --accent2:#00a8ff;   /* blue accent */
+  --green:  #44e580;   /* success green */
+  --warm:   #ff9f43;   /* warning orange */
 }
 ```
 
-To switch to a light theme: change `--bg` to `#f5f5f5` and `--text` to `#1a1a1a`.
-
----
-
-### 📄 Add a Fourth Output File (e.g. `.env.example`)
-
-**Step 1** — Add a generator function in `<script>`:
-
-```javascript
-function buildEnvExample(s) {
-  return `# .env.example — copy this to .env and fill in real values
-NODE_ENV=production
-PORT=${s.port}
-# DATABASE_URL=postgres://user:pass@db:5432/myapp
-`;
-}
-```
-
-**Step 2** — Call it in `generateLocally()`:
-
-```javascript
-generatedFiles.envExample = buildEnvExample(stack);
-```
-
-**Step 3** — Add a tab button in the HTML `<div class="tab-bar">`:
-
-```html
-<div class="tab" onclick="switchTab('env')">🔑 .env.example</div>
-```
-
-**Step 4** — Add the panel content in `<div class="tab-content">`:
-
-```html
-<div class="tab-panel" id="tab-env">
-  <div class="code-header">
-    <div class="code-filename"><span class="dot"></span> .env.example</div>
-    <div class="code-actions">
-      <button class="btn-copy" onclick="copyCode('envCode', this)">📋 Copy</button>
-      <button class="btn-dl" onclick="downloadFile('.env.example', 'envCode')">⬇ Download</button>
-    </div>
-  </div>
-  <div class="code-body"><pre><code id="envCode"></code></pre></div>
-</div>
-```
-
-**Step 5** — Add it to `downloadAll()`:
-
-```javascript
-{ name: '.env.example', id: 'envCode' },
-```
-
----
-
-### 🤖 Improve the AI Prompt
-
-Find the `generateWithAI()` function. The prompt is the long string starting with
-`"You are a senior DevOps engineer..."`. Add rules at the bottom of the `Rules:` section:
-
-```
-- Always add a comment above every RUN command explaining what it does
-- Add LABEL metadata: maintainer, version, description
-- Include ARG instructions for any version numbers used
-```
-
----
-
-### 🌐 Add More Framework Detection
-
-Inside `detectStack()`, find the block for your language and add to the framework check.
-For Node.js:
-
-```javascript
-else if (deps['hono'])    { framework = 'Hono';   port = '3000'; }
-else if (deps['nestjs'])  { framework = 'NestJS'; port = '3000'; startCmd = 'npm run start:prod'; }
-```
-
----
-
-### 💾 Download All Files as a Single Zip
-
-Replace the `downloadAll()` function with this (JSZip is already loaded):
-
-```javascript
-async function downloadAll() {
-  const zip = new JSZip();
-  zip.file('Dockerfile',         document.getElementById('dockerfileCode').textContent);
-  zip.file('docker-compose.yml', document.getElementById('composeCode').textContent);
-  zip.file('.dockerignore',      document.getElementById('ignoreCode').textContent);
-  const blob = await zip.generateAsync({ type: 'blob' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'docker-files.zip';
-  a.click();
-  showToast('✔ docker-files.zip downloaded!', 'success');
-}
-```
-
----
-
-### 🔧 Add a Settings Panel (Port Override, App Name, etc.)
-
-Add input fields above the output tabs. Then read the values before generating:
-
-```javascript
-// Read overrides before calling buildDockerfile()
-const portOverride = document.getElementById('portOverride').value.trim();
-if (portOverride) stack.port = portOverride;
-
-const nameOverride = document.getElementById('nameOverride').value.trim();
-if (nameOverride) stack.appName = nameOverride;
-```
-
----
-
-## Safe Upgrade Checklist
-
-Before changing anything:
-
-1. **Back up first**: `cp captain-container-app.html captain-container-app.backup.html`
-2. **Open DevTools** (`F12` in browser → Console tab) to see errors while testing
-3. **One change at a time** — test after each change before making another
-4. **Test with a real project zip** after every change
-
----
-
-## What You Can Safely Ignore (Don't Touch Unless You Need To)
-
-- The CDN `<script>` tags at the top — these load JSZip and Prism from the internet once, then the browser caches them offline
-- `Prism.highlightAll()` — this makes the code output colourful, safe to remove if you want plain text
-- CSS `@keyframes` blocks (`float`, `spin`, `fadeIn`) — purely visual animations, safe to delete
+### Safe upgrade checklist
+1. `cp captain-container-app.html captain-container-app.backup.html`
+2. Make one change
+3. Open in browser, press F12 → Console to check for errors
+4. Test with a real zip
+5. Repeat
 
 ---
 ---
 
 # ❓ Troubleshooting
 
-**App won't open / shows blank page**
-Open it in Chrome or Firefox. Safari sometimes blocks scripts from local files.
+**Blank page / nothing loads**
+Use Chrome or Firefox. Safari sometimes blocks local JS files.
 
-**Dropped the zip but nothing happened**
-Make sure it's a `.zip` file. Folders don't work — zip them first.
+**Dropped zip but nothing happened**
+File must end in `.zip`. Zip it first: `zip -r project.zip .`
 
-**AI mode says "HTTP 401"**
-Your API key is wrong or expired. Get a new one at [console.anthropic.com](https://console.anthropic.com).
+**Wrong stack detected**
+The engine missed a marker file. Check your zip contains `package.json` / `requirements.txt` / `go.mod` etc. in the root level.
 
-**AI mode says "HTTP 429"**
-Rate limit hit. Wait 60 seconds and try again, or use local template mode instead.
+**Port is wrong**
+The engine scans source files but may miss custom setups.
+After downloading, manually edit `EXPOSE` and the port in `CMD` in the Dockerfile.
 
-**Generated wrong stack**
-Click ↺ **Scan Another Project**, re-zip the correct project, and drop it again.
-
-**"python3: command not found"**
-```bash
-sudo apt update && sudo apt install python3
-```
+**Docker build fails with "file not found"**
+Your project structure puts source in a subfolder. Edit the `COPY` lines in the Dockerfile to match.
 
 **"docker: command not found"**
-Follow: https://docs.docker.com/engine/install/ubuntu/
+Install Docker: https://docs.docker.com/engine/install/ubuntu/
 
 **Port already in use**
 ```bash
-docker run -p 4000:3000 my-app   # use a different port on the left side
+docker run -p 4001:3000 my-app   # use a different host port on the left
 ```
 
 ---
 
-## 📌 Quick Reference Card
+## 📌 Quick Reference
 
-```
-# ── Desktop App ──────────────────────────────────
-# Open the app
+```bash
+# ── Open the app ──────────────────────────────────
 xdg-open ~/Desktop/captain-container/captain-container-app.html
 
-# Zip your project first
-cd /path/to/your-project && zip -r project.zip .
+# ── Zip your project ──────────────────────────────
+cd /path/to/project && zip -r project.zip .
 
-# ── Terminal Tool ─────────────────────────────────
-python3 ~/Desktop/captain-container/containerize.py
-python3 ~/Desktop/captain-container/containerize.py --dir /other/project
-python3 ~/Desktop/captain-container/containerize.py --dry-run
-
-# ── After files are generated ─────────────────────
-docker compose up -d            # start
-docker compose down             # stop
-docker compose up -d --build    # rebuild after changes
-docker compose logs -f          # watch logs
+# ── After generating files ────────────────────────
+cp .env.example .env && nano .env
+make up              # or: docker compose up -d
+make logs            # or: docker compose logs -f
+make rebuild         # or: docker compose up -d --build
+make shell           # or: docker compose exec app sh
+make down            # or: docker compose down
+make clean           # remove containers + images
 ```
 
 ---
 
-## 🗂️ Final Folder Layout
+## 🗂️ Folder Layout
 
 ```
-captain-container/                ← Keep this safe, don't delete anything here
-│
-├── captain-container-app.html    ← Desktop App  → open in browser
-├── containerize.py               ← Terminal Tool → run with python3
-├── README.md                     ← This file
-│
-└── sample-output/                ← Reference examples only
-    ├── Dockerfile
-    ├── docker-compose.yml
-    ├── .dockerignore
-    └── README.docker.md
+captain-container/                ← Keep this safe
+├── captain-container-app.html   ← Open in browser
+├── containerize.py              ← Terminal tool
+└── README.md
 
-
-your-project/                     ← Your actual app's code
-│
-├── (your source code...)
-│
-├── Dockerfile                    ← Generated — drop here ✅
-├── docker-compose.yml            ← Generated — drop here ✅
-└── .dockerignore                 ← Generated — drop here ✅
+your-project/                    ← Your app code
+├── Dockerfile                   ← Generated ✅
+├── docker-compose.yml           ← Generated ✅
+├── .dockerignore                ← Generated ✅
+├── .env.example                 ← Generated ✅
+├── Makefile                     ← Generated ✅
+└── .env                         ← You create from .env.example
 ```
 
 ---
 
-*Captain Container · Python 3 + HTML/JS · No installation required · Works on any Linux distro*
+*Captain Container v3 · 100% local · Python 3 + HTML/JS · Zero installation*
