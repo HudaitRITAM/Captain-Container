@@ -209,6 +209,7 @@ main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:36px 24p
       <div class="tab"     onclick="tab('di')">🚫 .dockerignore</div>
       <div class="tab"     onclick="tab('ev')">🔑 .env.example</div>
       <div class="tab"     onclick="tab('mk')">⚡ Makefile</div>
+      <div class="tab"     onclick="tab('k8')">☸️ k8s.yml</div>
     </div>
     <div class="tcontent">
       <div class="tpanel on" id="tp-df">
@@ -236,11 +237,18 @@ main{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:36px 24p
         <div class="cacts"><button class="bcopy" onclick="cp('o-mk',this)">📋 Copy</button><button class="bdl" onclick="dl('Makefile','o-mk')">⬇ Save</button></div></div>
         <div class="cbody"><pre><code id="o-mk" style="font-family:'JetBrains Mono',monospace;font-size:12.5px"></code></pre></div>
       </div>
+      <div class="tpanel" id="tp-k8">
+        <div class="cbar">
+          <div class="cfn"><span class="dot" style="background:var(--accent2);box-shadow:0 0 6px var(--accent2)"></span>k8s.yml <span style="font-size:10px;color:var(--dim);margin-left:8px">— always generated; only relevant if you deploy to Kubernetes</span></div>
+          <div class="cacts"><button class="bcopy" onclick="cp('o-k8',this)">📋 Copy</button><button class="bdl" onclick="dl('k8s.yml','o-k8')">⬇ Save</button></div>
+        </div>
+        <div class="cbody"><pre><code class="language-yaml" id="o-k8"></code></pre></div>
+      </div>
     </div>
   </div>
 
   <div class="dlbar" id="dlbar">
-    <button class="bdlall" onclick="dlAll()">⬇ Download All 5 Files as ZIP</button>
+    <button class="bdlall" onclick="dlAll()">⬇ Download All 6 Files as ZIP</button>
     <button class="breset" onclick="resetAll()">↺ Scan Another Project</button>
   </div>
 </main>
@@ -345,16 +353,32 @@ async function run(file) {
       try { C[base] = await e.async('string'); } catch(_) {}
     }
   }
+
+  // Read ALL .yaml/.yml files to detect Kubernetes manifests
+  for (const {p, e} of entries) {
+    if ((p.endsWith('.yaml') || p.endsWith('.yml')) && !p.includes('node_modules')) {
+      try {
+        const txt = await e.async('string');
+        if (txt.includes('apiVersion:') && txt.includes('kind:')) {
+          C[`__k8s__${p.replace(/\//g,'_')}`] = txt;
+        }
+      } catch(_) {}
+    }
+  }
   prog(28);
 
   slog('src','🔬','Scanning source files for port bindings…');
   for (const {p, e} of entries) {
     const base = p.split('/').pop();
     const stripped = p.replace(/^[^/]+\//,'');
-    if (SOURCES.includes(base) || SOURCES.includes(stripped)) {
+    // Match root-level AND any nested server.js/server.ts/app.js etc.
+    const isSource = SOURCES.includes(base) || SOURCES.includes(stripped) ||
+      (base === 'server.js' || base === 'server.ts' || base === 'app.js' || base === 'index.js');
+    if (isSource && !p.includes('node_modules')) {
       try {
         const src = await e.async('string');
-        C[`__src__${base}`] = src.slice(0,8000); // first 8k chars is enough
+        // Key by full path so subdirectory server.js doesn't overwrite root server.js
+        C[`__src__${p.replace(/\//g,'_')}`] = src.slice(0,10000);
       } catch(_) {}
     }
   }
@@ -373,6 +397,9 @@ async function run(file) {
   if (G.dbs.length)   slog('inf','🗄',`Databases: <span class="txt">${G.dbs.join(', ')}</span>`);
   if (G.needsAlpineWarn) slog('wrn','⚠',`<span class="txt">Alpine incompatibility</span> — switching to slim`);
   if (G.hasSysDeps)   slog('wrn','📦',`Native deps: <span class="txt">${G.sysDeps.join(', ')}</span>`);
+  if (G.isK8s)        slog('det','☸',`<span class="txt">Kubernetes manifests detected</span> — generating k8s.yml tab`);
+  if (G.buildArgs.length) slog('det','🔑',`Build-time vars: <span class="txt">${G.buildArgs.join(', ')}</span> → ARG instructions`);
+  if (G.hasCustomServer)  slog('src','🖥',`Custom server detected: <span class="txt">${G.customServerFile}</span> on port <span class="txt">${G.port}</span>`);
   prog(86);
 
   slog('det','📝','Generating optimised files…');
@@ -381,6 +408,7 @@ async function run(file) {
   G.ignore     = mkIgnore(G);
   G.envex      = mkEnvExample(G);
   G.makefile   = mkMakefile(G);
+  G.k8s        = mkK8s(G);
   prog(100);
 
   document.getElementById('sptitle').textContent = '✔ Analysis complete';
@@ -406,6 +434,15 @@ function analyse(paths, C) {
     dbs:[], cache:[], queues:[], services:[],
     sysDeps:[], needsAlpineWarn:false, useAlpine:true,
     envVars:[], envVals:{},
+    buildArgs:[],          // NEW: vars that must be ARG (REACT_APP_*, NEXT_PUBLIC_*, etc.)
+    runtimeVars:[],        // NEW: vars that are runtime only
+    hasCustomServer:false, // NEW: CRA/static but has a node server.js too
+    customServerFile:'',   // NEW: which file is the custom server
+    isK8s:false,           // NEW: kubernetes manifests detected
+    k8sNamespace:'default',// NEW: detected k8s namespace
+    k8sReplicas:1,         // NEW: detected replicas
+    k8sCpuReq:'250m', k8sCpuLim:'1000m',
+    k8sMemReq:'256Mi', k8sMemLim:'512Mi',
     hasNginx:false, hasSupervisor:false,
     procfileCmd:'', procfileWorker:'',
     hasMakefile:false, hasExistingDockerfile:false,
@@ -432,6 +469,32 @@ function analyse(paths, C) {
   R.hasExistingDockerfile = hf('Dockerfile');
   if (R.hasExistingDockerfile) R.warnings.push('Existing Dockerfile will be replaced');
   if (hf('docker-compose.yml') || hf('docker-compose.yaml')) R.warnings.push('Existing docker-compose.yml will be replaced');
+
+  // ── Sniff Node version from EXISTING Dockerfile ──────
+  // "FROM node:22.2" or "FROM node:22-alpine" → version 22
+  const existingDF = C['Dockerfile'] || '';
+  const dfNodeVer = (existingDF.match(/FROM\s+node:(\d+)/) || [])[1] || '';
+
+  // ── Kubernetes detection ──────────────────────────────
+  const k8sContents = Object.entries(C)
+    .filter(([k]) => k.startsWith('__k8s__'))
+    .map(([,v]) => v)
+    .join('\n');
+  if (k8sContents) {
+    R.isK8s = true;
+    // Extract namespace
+    const nsMatch = k8sContents.match(/namespace:\s*(\S+)/);
+    if (nsMatch) R.k8sNamespace = nsMatch[1];
+    // Extract replicas
+    const repMatch = k8sContents.match(/replicas:\s*(\d+)/);
+    if (repMatch) R.k8sReplicas = parseInt(repMatch[1]) || 1;
+    // Extract resource limits from existing k8s
+    const cpuLimMatch = k8sContents.match(/cpu:\s*["']?(\d+m)["']?\s*\n.*?(?=requests|limits)/s);
+    const memLimMatch = k8sContents.match(/memory:\s*["']?(\d+Mi)["']?/);
+    if (memLimMatch) { R.k8sMemLim = memLimMatch[1]; R.k8sMemReq = memLimMatch[1]; }
+    const cpuReqMatch = k8sContents.match(/cpu:\s*["']?(\d+m)["']?/);
+    if (cpuReqMatch) R.k8sCpuReq = cpuReqMatch[1];
+  }
 
   // ── Procfile parsing ─────────────────────────────────
   const procfile = C['Procfile'] || '';
@@ -472,9 +535,9 @@ function analyse(paths, C) {
     else if (hf('yarn.lock'))                  R.pkgMgr='yarn';
     else                                        R.pkgMgr='npm';
 
-    // ── Node version (priority: .nvmrc > package.json engines > default) ──
+    // ── Node version (priority: .nvmrc > engines > existing Dockerfile > default) ──
     const engNode = ((pkg.engines||{}).node||'').replace(/[^0-9.]/g,'').split('.')[0];
-    R.langMaj = nvmrc || engNode || '20';
+    R.langMaj = nvmrc || engNode || dfNodeVer || '20';
     R.langVer = `Node ${R.langMaj}`;
     R.buildImg = `node:${R.langMaj}-alpine`;
     R.baseImg  = `node:${R.langMaj}-alpine`;
@@ -491,6 +554,18 @@ function analyse(paths, C) {
     const sc = {npm:'npm start',yarn:'yarn start',pnpm:'pnpm start',bun:'bun start'};
 
     R.buildCmd = ic[R.pkgMgr];
+
+    // ── Custom Node server detection ─────────────────────
+    // Check if ANY server.js / server.ts exists (even in subdirs)
+    // This overrides pure-static assumption for CRA/Vite projects
+    const serverFiles = paths.filter(p =>
+      (p.endsWith('server.js') || p.endsWith('server.ts') || p.endsWith('app.js')) &&
+      !p.includes('node_modules') && !p.includes('.next')
+    );
+    if (serverFiles.length > 0) {
+      R.hasCustomServer = true;
+      R.customServerFile = serverFiles[0].split('/').pop();
+    }
 
     // ── Framework detection (ordered by specificity) ──
     if (deps['next']) {
@@ -509,9 +584,20 @@ function analyse(paths, C) {
       R.startCmd = 'nginx -g "daemon off;"';
       R.healthPath='/';
     } else if (deps['react-scripts']) {
-      R.framework='Create React App'; R.port='80'; R.isStatic=true; R.isMulti=true;
+      R.framework='Create React App'; R.isMulti=true;
       R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
-      R.startCmd = 'nginx -g "daemon off;"'; R.healthPath='/';
+      // ── KEY FIX: if a custom server.js exists, it's NOT a pure static site ──
+      if (R.hasCustomServer) {
+        R.isStatic = false;
+        R.port = '5000';   // common custom server port; overridden by source scan below
+        R.startCmd = `node ${R.customServerFile}`;
+        R.baseImg = `node:${R.langMaj}-alpine`;
+        R.framework = 'CRA + Node Server';
+        R.healthPath = '/';
+      } else {
+        R.isStatic = true; R.port='80';
+        R.startCmd = 'nginx -g "daemon off;"'; R.healthPath='/';
+      }
     } else if (deps['react'] && (deps['vite']||deps['@vitejs/plugin-react'])) {
       R.framework='React + Vite'; R.port='80'; R.isStatic=true; R.isMulti=true;
       R.buildCmd = `${ic[R.pkgMgr]} && ${bc[R.pkgMgr]}`;
@@ -577,11 +663,12 @@ function analyse(paths, C) {
     // ── Native deps that need system packages ──
     detectNodeNativeDeps(dStr, R);
 
-    // ── DB detection ──
+    // ── DB detection — only from package.json dependencies, NOT env var strings ──
     if (has(dStr,'pg','postgres','@prisma/client','typeorm','sequelize')) R.dbs.push('postgresql');
     if (has(dStr,'mysql','mysql2')) R.dbs.push('mysql');
     if (has(dStr,'mongoose','mongodb')) R.dbs.push('mongodb');
-    if (has(dStr,'redis','ioredis','@upstash/redis')) R.cache.push('redis');
+    // Redis: only add local compose service if redis/ioredis is an actual npm dep
+    if (has(dStr,'"redis"','"ioredis"','"@upstash/redis"')) R.cache.push('redis');
     if (has(dStr,'kafkajs','kafka-node')) R.queues.push('kafka');
     if (has(dStr,'amqplib','amqp-connection-manager','bull','bullmq')) R.queues.push('rabbitmq');
 
@@ -964,6 +1051,30 @@ function analyse(paths, C) {
     if (ep && ep !== R.port) { R.port=ep; R.portSource='.env file'; }
   }
 
+  /* ═════════ BUILD-TIME vs RUNTIME VARS ═════════════════ */
+  // These prefixes are baked into the JS bundle at build time (npm run build)
+  // They MUST be Docker ARG instructions in the build stage, NOT runtime ENV
+  const BUILD_ARG_PREFIXES = [
+    'REACT_APP_',    // Create React App
+    'NEXT_PUBLIC_',  // Next.js
+    'VITE_',         // Vite (React, Vue, Svelte)
+    'GATSBY_',       // Gatsby
+    'NUXT_PUBLIC_',  // Nuxt 3
+    'PUBLIC_',       // SvelteKit
+    'EXPO_PUBLIC_',  // Expo / React Native
+  ];
+  R.envVars.forEach(k => {
+    if (BUILD_ARG_PREFIXES.some(p => k.startsWith(p))) {
+      R.buildArgs.push(k);
+    } else {
+      R.runtimeVars.push(k);
+    }
+  });
+  // Also detect common build-time meta vars
+  ['APP_VERSION','BUILD_DATE','BUILD_TIME','VERSION','GIT_SHA','GIT_COMMIT'].forEach(k => {
+    if (R.envVars.includes(k) && !R.buildArgs.includes(k)) R.buildArgs.push(k);
+  });
+
   /* ═════════ VOLUMES ════════════════════════════════════ */
   if (paths.some(p=>p.includes('/uploads/')||p.includes('/storage/'))) R.volumes.push('uploads:/app/uploads');
   if (paths.some(p=>p.includes('/logs/'))) R.volumes.push('logs:/app/logs');
@@ -1007,6 +1118,12 @@ function analyse(paths, C) {
     R.insights.push({type:'warn', text:'Build requires git — added to build stage apt-get install'});
   if (R.useDistroless)
     R.insights.push({type:'good', text:'Using distroless runtime image — minimal attack surface, no shell, no package manager'});
+  if (R.isK8s)
+    R.insights.push({type:'good', text:`Kubernetes manifests detected (namespace: ${R.k8sNamespace}, replicas: ${R.k8sReplicas}) — k8s.yml tab generated`});
+  if (R.buildArgs.length)
+    R.insights.push({type:'good', text:`${R.buildArgs.length} build-time vars detected (${R.buildArgs.slice(0,3).join(', ')}${R.buildArgs.length>3?'…':''}) → ARG instructions added to build stage`});
+  if (R.hasCustomServer && R.framework && R.framework.includes('CRA'))
+    R.insights.push({type:'warn', text:`CRA + custom server.js detected — NOT using nginx. Serving built React app via Node.js on port ${R.port}. Verify your server's mv/copy step matches the Dockerfile.`});
 
   R.needsDB = R.dbs.length > 0;
   R.hasSysDeps = R.sysDeps.length > 0;
@@ -1112,6 +1229,13 @@ function mkDockerfile(R) {
     a(`FROM ${R.buildImg} AS builder`);
     a('WORKDIR /app');
     a('COPY --from=deps /app/node_modules ./node_modules');
+    // ── Build-time ARGs (React/Vite/Next bakes these into the JS bundle) ──
+    if (R.buildArgs.length) {
+      nl(); a('# Build-time variables — passed with --build-arg at CI/CD time');
+      R.buildArgs.forEach(k => a(`ARG ${k}`));
+      nl(); a('# Expose ARGs as ENV so build tools (react-scripts, vite, etc.) can read them');
+      R.buildArgs.forEach(k => a(`ENV ${k}=\${${k}}`));
+    }
     a('COPY . .'); nl();
     if (R.nodeOptions) a(`ENV NODE_OPTIONS="${R.nodeOptions}"`);
     a(`RUN npm run build`); nl();
@@ -1149,7 +1273,15 @@ function mkDockerfile(R) {
       else if (R.pkgMgr==='pnpm') { a('COPY pnpm-lock.yaml ./'); a('RUN corepack enable pnpm && pnpm install --frozen-lockfile'); }
       else if (R.pkgMgr==='bun')  { a('COPY bun.lockb ./'); a('RUN bun install --frozen-lockfile'); }
       else a('RUN npm ci');
-      nl(); a('COPY . .');
+      nl();
+      // ── Build-time ARGs ──
+      if (R.buildArgs.length) {
+        a('# Build-time variables — baked into JS bundle at build time');
+        R.buildArgs.forEach(k => a(`ARG ${k}`));
+        R.buildArgs.forEach(k => a(`ENV ${k}=\${${k}}`));
+        nl();
+      }
+      a('COPY . .');
       if (R.isTS || R.framework==='NestJS' || has(R.buildCmd,'build')) { nl(); if(R.nodeOptions) a(`ENV NODE_OPTIONS="${R.nodeOptions}"`); a(`RUN ${R.pkgMgr==='bun'?'bun run build':'npm run build'} 2>/dev/null || true`); }
       nl();
     } else if (R.stack==='java') {
@@ -1619,6 +1751,177 @@ help:
 }
 
 /* ═══════════════════════════════════════════════════════
+   📄 KUBERNETES MANIFEST GENERATOR
+   ═══════════════════════════════════════════════════════ */
+function mkK8s(R) {
+  const name = 'app';
+  const ns   = R.k8sNamespace || 'default';
+  const port = R.port;
+  const buildArgBlock = R.buildArgs.length
+    ? R.buildArgs.map(k => `        - name: ${k}\n          value: "${R.envVals[k]||''}"`).join('\n')
+    : '';
+
+  // ConfigMap: non-secret runtime vars
+  const cmData = R.runtimeVars.length
+    ? R.runtimeVars.map(k => {
+        const v = R.envVals[k]||'';
+        const safe = /secret|password|key|token|pass|private/i.test(k) ? null : v;
+        return safe !== null ? `  ${k}: "${safe.replace(/"/g,'\\"')}"` : null;
+      }).filter(Boolean).join('\n')
+    : '  # Add your env vars here\n  ENV: production';
+
+  const secretKeys = R.runtimeVars.filter(k =>
+    /secret|password|key|token|pass|private/i.test(k)
+  );
+
+  return `# kubernetes manifests — ${R.display}${R.framework?' · '+R.framework:''}
+# Generated by Captain Container
+#
+# Apply:     kubectl apply -f k8s.yml
+# Status:    kubectl get pods -n ${ns}
+# Logs:      kubectl logs -f -l app=${name} -n ${ns}
+# Shell:     kubectl exec -it deploy/${name}-deployment -n ${ns} -- sh
+
+---
+# ── Namespace ─────────────────────────────────────────
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ${ns}
+
+---
+# ── ConfigMap (non-secret env vars) ───────────────────
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ${name}-config
+  namespace: ${ns}
+data:
+${cmData}
+
+---
+# ── Secret (sensitive vars — base64 encode values!) ───
+# Run: echo -n "your-value" | base64
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ${name}-secret
+  namespace: ${ns}
+type: Opaque
+stringData:
+${secretKeys.length
+  ? secretKeys.map(k => `  ${k}: "CHANGE_ME_base64_encoded"`).join('\n')
+  : '  SECRET_KEY: "CHANGE_ME"'}
+
+---
+# ── Deployment ────────────────────────────────────────
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ${name}-deployment
+  namespace: ${ns}
+  labels:
+    app: ${name}
+    version: \${APP_VERSION:-v1}
+spec:
+  replicas: ${R.k8sReplicas}
+  selector:
+    matchLabels:
+      app: ${name}
+  template:
+    metadata:
+      labels:
+        app: ${name}
+    spec:
+      containers:
+      - name: ${name}
+        image: your-registry/${name}:\${APP_VERSION:-latest}
+        ports:
+        - containerPort: ${port}
+          protocol: TCP
+        envFrom:
+        - configMapRef:
+            name: ${name}-config
+        - secretRef:
+            name: ${name}-secret
+        resources:
+          requests:
+            cpu: "${R.k8sCpuReq}"
+            memory: "${R.k8sMemReq}"
+          limits:
+            cpu: "${R.k8sCpuLim}"
+            memory: "${R.k8sMemLim}"
+        livenessProbe:
+          httpGet:
+            path: ${R.healthPath}
+            port: ${port}
+          initialDelaySeconds: ${R.healthStart}
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: ${R.healthPath}
+            port: ${port}
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 3
+      terminationGracePeriodSeconds: 30
+
+---
+# ── Service (ClusterIP — internal access only) ────────
+apiVersion: v1
+kind: Service
+metadata:
+  name: ${name}-service
+  namespace: ${ns}
+spec:
+  selector:
+    app: ${name}
+  ports:
+  - protocol: TCP
+    port: ${port}
+    targetPort: ${port}
+  type: ClusterIP
+
+---
+# ── HorizontalPodAutoscaler ───────────────────────────
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ${name}-hpa
+  namespace: ${ns}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: ${name}-deployment
+  minReplicas: ${R.k8sReplicas}
+  maxReplicas: ${Math.max(R.k8sReplicas * 3, 5)}
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+${R.dbs.length ? `
+---
+# ── Note: Database ────────────────────────────────────
+# Database (${R.dbs.join(', ')}) detected.
+# For production, use a managed service (RDS, CloudSQL, Atlas)
+# OR deploy a StatefulSet with a PersistentVolumeClaim.
+# Never run a database as a regular Deployment (no persistent storage).
+` : ''}`;
+}
+
+/* ═══════════════════════════════════════════════════════
    UI RENDERING
    ═══════════════════════════════════════════════════════ */
 function renderCard(R) {
@@ -1637,6 +1940,8 @@ function renderCard(R) {
   if (R.isMonorepo)             p('monorepo','pw');
   if (R.useDistroless)          p('distroless','pg');
   if (R.hasWorker)              p('worker','pp');
+  if (R.isK8s)                  p('☸ k8s detected','pb');
+  if (R.buildArgs.length)       p(`${R.buildArgs.length} build ARGs`,'pp');
   R.dbs.forEach(d => p(d,'pw'));
   R.cache.forEach(c => p(c,'pr'));
   if (R.services.includes('graphql')) p('graphql','pp');
@@ -1659,6 +1964,9 @@ function renderCard(R) {
   st('NATIVE DEPS', R.sysDeps.length ? R.sysDeps.join(', ') : 'none', R.sysDeps.length?'p':'');
   st('WORKERS', R.hasWorker?'detected':'none', R.hasWorker?'p':'');
   st('VOLUMES', R.volumes.length||'0', R.volumes.length?'b':'');
+  st('BUILD ARGS', R.buildArgs.length||'0', R.buildArgs.length?'p':'');
+  st('K8S', R.isK8s?`yes (${R.k8sNamespace})`:'no', R.isK8s?'b':'');
+  if (R.isK8s) st('K8S REPLICAS', `${R.k8sReplicas} → ${Math.max(R.k8sReplicas*3,5)}`, 'a');
 }
 
 function renderInsights(R) {
@@ -1681,6 +1989,7 @@ function renderOutput(R) {
   setTxt('o-di', R.ignore);
   setTxt('o-ev', R.envex);
   setTxt('o-mk', R.makefile);
+  setTxt('o-k8', R.k8s);
   Prism.highlightAll();
   show('ow');
   show('dlbar');
@@ -1690,7 +1999,7 @@ function setTxt(id,v){ document.getElementById(id).textContent=v; }
 function show(id){ document.getElementById(id).classList.add('on'); }
 
 function tab(n) {
-  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',['df','dc','di','ev','mk'][i]===n));
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('on',['df','dc','di','ev','mk','k8'][i]===n));
   document.querySelectorAll('.tpanel').forEach(p=>p.classList.remove('on'));
   document.getElementById(`tp-${n}`).classList.add('on');
 }
@@ -1708,18 +2017,22 @@ function dl(name,id) {
   showToast(`⬇ ${name} saved`,'suc');
 }
 async function dlAll() {
-  const files=[['Dockerfile','o-df'],['docker-compose.yml','o-dc'],['.dockerignore','o-di'],['.env.example','o-ev'],['Makefile','o-mk']];
+  const files=[
+    ['Dockerfile','o-df'],['docker-compose.yml','o-dc'],['.dockerignore','o-di'],
+    ['.env.example','o-ev'],['Makefile','o-mk'],['k8s.yml','o-k8']
+  ];
   const zip=new JSZip();
   files.forEach(([n,id])=>zip.file(n,document.getElementById(id).textContent));
   const blob=await zip.generateAsync({type:'blob'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='docker-files.zip'; a.click();
-  showToast('✔ docker-files.zip — all 5 files','suc');
+  showToast('✔ docker-files.zip — all 6 files','suc');
 }
 
 function regen() {
   if(!G.stack) return;
   G.dockerfile=mkDockerfile(G); G.compose=mkCompose(G);
-  G.ignore=mkIgnore(G); G.envex=mkEnvExample(G); G.makefile=mkMakefile(G);
+  G.ignore=mkIgnore(G); G.envex=mkEnvExample(G);
+  G.makefile=mkMakefile(G); G.k8s=mkK8s(G);
   renderOutput(G);
   showToast('⟳ Regenerated','suc');
 }

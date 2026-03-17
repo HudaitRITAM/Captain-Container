@@ -494,3 +494,163 @@ your-project/                    ← Your app code
 ---
 
 *Captain Container v3 · 100% local · Python 3 + HTML/JS · Zero installation*
+
+---
+---
+
+# 🔬 PART 5 — Real-World Test & What Was Fixed (v4)
+
+## The Test Project
+
+A real CRA (Create React App) + Node.js server project was run through the agent.
+The project had:
+- `package.json` with `react-scripts`
+- A custom `nest_portal_server/server.js` serving the built React app on port **5000**
+- `REACT_APP_*` environment variables baked into the JS bundle at build time
+- A Kubernetes deployment already in production
+- Redis connected via k8s ConfigMap env var (`REDIS_URL`) — **not** as an npm package
+
+## What v3 Generated (Wrong)
+
+| Output | What it said | Why it was wrong |
+|--------|-------------|-----------------|
+| Dockerfile | nginx on port 80 | Saw `react-scripts` → assumed pure static site. Never found `server.js` |
+| docker-compose.yml | Added Redis as a local service | Matched the string `"redis"` inside the k8s ConfigMap value — not an actual dep |
+| Node version | `node:20-alpine` | No `.nvmrc` — should have read `FROM node:22.2` from the existing Dockerfile |
+| ENV vars | All as runtime `ENV` | `REACT_APP_*` vars need Docker `ARG` — they're baked at `npm run build`, not runtime |
+| k8s | Nothing | No Kubernetes detection existed |
+
+## What v4 Fixed
+
+### Fix 1 — Custom server detection
+The agent now scans **all** `.js` files in all subdirectories (not just root).
+If a `server.js` exists anywhere, it overrides the static-site assumption.
+Your project becomes `CRA + Node Server` with the correct port and `node server.js` start command.
+
+### Fix 2 — `REACT_APP_*` become Docker `ARG`, not `ENV`
+The agent now knows that these prefixes are **baked into the JS bundle at build time**:
+`REACT_APP_*`, `NEXT_PUBLIC_*`, `VITE_*`, `GATSBY_*`, `NUXT_PUBLIC_*`, `PUBLIC_*`
+
+It generates them as `ARG` + `ENV` in the **build stage**, not the runtime stage:
+```dockerfile
+# Build-time variables — baked into JS bundle at build time
+ARG REACT_APP_KEYCLOAK_ACCESS
+ARG REACT_APP_KEYCLOAK_REALM
+ENV REACT_APP_KEYCLOAK_ACCESS=${REACT_APP_KEYCLOAK_ACCESS}
+ENV REACT_APP_KEYCLOAK_REALM=${REACT_APP_KEYCLOAK_REALM}
+```
+And in `docker-compose.yml` under `build.args`:
+```yaml
+build:
+  args:
+    - REACT_APP_KEYCLOAK_ACCESS=${REACT_APP_KEYCLOAK_ACCESS}
+```
+
+### Fix 3 — Port from subdirectory server files
+Previously only scanned `server.js` at the root.
+Now scans **every** `server.js` / `server.ts` / `app.js` in the entire project tree,
+so `nest_portal_server/server.js` listening on port 5000 is found.
+
+### Fix 4 — Redis false positive
+Previously: any string containing `"redis"` (including env var values like `REDIS_URL=redis://...`)
+would add Redis as a local docker-compose service.
+
+Now: Redis only added if `"redis"` or `"ioredis"` is an actual **npm dependency** in `package.json`.
+If you connect to an external Redis via env var, no local service is added.
+
+### Fix 5 — Kubernetes detection (new ☸️ k8s.yml tab)
+The agent now reads **every `.yml`/`.yaml`** file in the project.
+If it finds `apiVersion:` + `kind:` → it's a Kubernetes project.
+
+It extracts:
+- Namespace from `metadata.namespace`
+- Replica count from `spec.replicas`
+- Resource limits/requests from `resources.limits`
+
+And generates a complete `k8s.yml` with:
+- `Namespace`
+- `ConfigMap` (non-secret vars)
+- `Secret` (detected secret vars)
+- `Deployment` with liveness + readiness probes
+- `Service` (ClusterIP)
+- `HorizontalPodAutoscaler` (min → max replicas, CPU+memory targets)
+
+### Fix 6 — Node version from existing Dockerfile
+Previously: no `.nvmrc` + no `engines` field → defaulted to Node 20.
+
+Now: also reads `FROM node:22.2` from the existing `Dockerfile` as a version source.
+Priority order: `.nvmrc` → `engines.node` → **existing Dockerfile FROM** → default 20.
+
+### Fix 7 — Build-time meta vars as `ARG`
+`APP_VERSION`, `BUILD_DATE`, `BUILD_TIME`, `VERSION`, `GIT_SHA`, `GIT_COMMIT`
+are now detected as build-time ARGs (not runtime ENV) because they're typically
+injected by CI/CD pipelines at build time.
+
+---
+
+## The Correct Output for That Project
+
+**Dockerfile (what it should have generated):**
+```dockerfile
+# Build stage
+FROM node:22-alpine AS builder
+WORKDIR /build
+
+# Layer cache
+COPY package*.json ./
+RUN npm ci
+
+# Build-time variables — baked into JS bundle at build time
+ARG REACT_APP_KEYCLOAK_ACCESS
+ARG REACT_APP_KEYCLOAK_REALM
+ARG REACT_APP_KEYCLOAK_CLIENT
+ARG REACT_APP_VERSION
+ARG REACT_APP_BUILD_DATE
+ARG REACT_APP_BUILD_TIME
+ARG REACT_APP_ROLE_BASED_USER
+ARG REACT_APP_SECRET_KEY
+ARG REACT_APP_ENCRYPT_KEY
+ENV REACT_APP_KEYCLOAK_ACCESS=${REACT_APP_KEYCLOAK_ACCESS}
+# ... (all the above)
+
+COPY . .
+RUN npm run build
+
+# Runtime stage
+FROM node:22-alpine AS runtime
+WORKDIR /app
+COPY --from=builder /build/node_modules ./node_modules
+COPY --from=builder /build/ ./
+
+EXPOSE 5000
+CMD ["node", "nest_portal_server/server.js"]
+```
+
+**k8s.yml tab (new):** Full Deployment + Service + HPA + ConfigMap + Secret,
+with namespace `web`, replicas from your existing manifest, resource limits preserved.
+
+---
+
+## How to Use Build-Time Args When Running Docker
+
+```bash
+# Build with build-args
+docker build \
+  --build-arg REACT_APP_KEYCLOAK_ACCESS=https://... \
+  --build-arg REACT_APP_KEYCLOAK_REALM=nest \
+  --build-arg REACT_APP_VERSION=1.2.3 \
+  -t myapp .
+
+# Or with docker compose (set in .env file, compose passes them through)
+docker compose up -d --build
+```
+
+In CI/CD (GitHub Actions):
+```yaml
+- name: Build Docker image
+  run: |
+    docker build \
+      --build-arg REACT_APP_KEYCLOAK_ACCESS=${{ secrets.KC_ACCESS }} \
+      --build-arg REACT_APP_VERSION=${{ github.ref_name }} \
+      -t myapp .
+```
