@@ -280,139 +280,164 @@ async function run(file) {
   reset();
   show('sp');
   slog('inf','📦',`<span class="txt">${file.name}</span> <span class="dm">${fmtSz(file.size)}</span>`);
-  prog(6);
+  prog(8);
 
+  // ── 1. Load zip ───────────────────────────────────────
   let zip;
   try { zip = await JSZip.loadAsync(file); }
   catch(e) { slog('wrn','✖','Cannot read zip: '+e.message); return; }
 
-  const entries = [];
-  zip.forEach((p, e) => { if (!e.dir) entries.push({p, e}); });
-  document.getElementById('spcnt').textContent = entries.length+' files';
-  slog('ok','✔',`<span class="txt">${entries.length} files</span> found`);
-  prog(12);
+  // ── 2. Collect file list (no reading yet) ─────────────
+  const allEntries = [];
+  zip.forEach((p, e) => { if (!e.dir) allEntries.push({p, e}); });
+  document.getElementById('spcnt').textContent = allEntries.length+' files';
+  slog('ok','✔',`<span class="txt">${allEntries.length} files</span> found`);
+  prog(14);
 
-  /* ── read ALL relevant files ── */
-  const C = {};  // filename → content
+  // ── 3. Skip directories that are never useful ─────────
+  const SKIP = ['node_modules','vendor','.git','dist','build','.next','.nuxt',
+                'coverage','target','__pycache__','.gradle','bin','obj','.cache'];
+  const skip = p => SKIP.some(d => p.includes('/'+d+'/') || p.startsWith(d+'/'));
 
-  // Priority 1: config/manifest files
-  const CONFIGS = [
-    'package.json','package-lock.json','yarn.lock','pnpm-lock.yaml','bun.lockb','bunfig.toml',
-    'requirements.txt','Pipfile','Pipfile.lock','pyproject.toml','setup.py','setup.cfg','poetry.lock',
-    'pom.xml','build.gradle','build.gradle.kts','settings.gradle','gradle.properties','gradle-wrapper.properties',
-    'go.mod','go.sum','go.work',
-    'composer.json','composer.lock',
-    'Gemfile','Gemfile.lock','.ruby-version',
-    'Cargo.toml','Cargo.lock',
-    'deno.json','deno.jsonc','deno.lock',
-    'Procfile',
-    '.nvmrc','.node-version','.tool-versions',
-    '.python-version','runtime.txt',
-    'tsconfig.json','jsconfig.json',
-    'next.config.js','next.config.ts','next.config.mjs',
-    'nuxt.config.js','nuxt.config.ts',
-    'vite.config.js','vite.config.ts','vite.config.mjs',
-    'webpack.config.js','rollup.config.js',
-    'angular.json',
-    'svelte.config.js','svelte.config.ts',
-    'astro.config.mjs','astro.config.ts',
-    'remix.config.js',
-    'nest-cli.json',
+  // ── 4. Names we want to read (exact basename match) ───
+  const WANT = new Set([
+    'package.json','yarn.lock','pnpm-lock.yaml','bun.lockb','bunfig.toml',
+    'requirements.txt','Pipfile','pyproject.toml','setup.py','poetry.lock',
+    'pom.xml','build.gradle','build.gradle.kts','settings.gradle',
+    'go.mod','go.sum','composer.json','Gemfile','.ruby-version',
+    'Cargo.toml','deno.json','deno.jsonc','Procfile',
+    '.nvmrc','.node-version','.tool-versions','.python-version','runtime.txt',
+    'tsconfig.json','next.config.js','next.config.ts','next.config.mjs',
+    'nuxt.config.js','nuxt.config.ts','vite.config.js','vite.config.ts',
+    'angular.json','svelte.config.js','nest-cli.json',
     'turbo.json','nx.json','lerna.json',
     'manage.py','wsgi.py','asgi.py',
     'application.properties','application.yml','application.yaml',
-    'nginx.conf','nginx.conf.example','default.conf',
-    'supervisord.conf','supervisor.conf',
-    'Makefile','makefile','GNUmakefile',
-    'fly.toml','railway.toml','render.yaml','vercel.json','netlify.toml','heroku.yml',
-    '.env','.env.example','.env.sample','.env.local','.env.production','.env.defaults',
-    '.gitignore',
-    'Dockerfile','docker-compose.yml','docker-compose.yaml','.dockerignore',
-    'CMakeLists.txt',
-  ];
+    'nginx.conf','supervisord.conf',
+    '.env','.env.example','.env.sample','.env.production',
+    '.gitignore','Dockerfile','docker-compose.yml','docker-compose.yaml',
+    // Source files for port scanning
+    'server.js','server.ts','app.js','app.py','main.py','main.go',
+    'main.rs','app.rb','config.ru','index.js','index.ts',
+  ]);
 
-  // Priority 2: main entry-point source files (for port scanning)
-  const SOURCES = [
-    'app.py','main.py','server.py','run.py','app/__init__.py','application.py',
-    'index.js','server.js','app.js','main.js','src/index.js','src/server.js','src/app.js',
-    'index.ts','server.ts','app.ts','src/index.ts','src/main.ts',
-    'main.go','cmd/main.go','cmd/server/main.go',
-    'src/main.rs','src/lib.rs',
-    'app.rb','config.ru','lib/app.rb',
-    'Program.cs','Startup.cs','Program.fs',
-    'main.c','main.cpp','src/main.cpp',
-    'artisan',   // Laravel
-    'bin/www',   // Express generator
-  ];
+  const C = {};
+  let reads = 0, k8sCount = 0;
 
-  slog('inf','📂','Reading config files…');
-  for (const {p, e} of entries) {
-    const base = p.split('/').pop();
-    const fullPath = p.replace(/^[^/]+\//,''); // strip top-level dir
-    if (CONFIGS.includes(base) || CONFIGS.includes(fullPath)) {
-      try { C[base] = await e.async('string'); } catch(_) {}
+  slog('inf','📂','Reading project files…');
+
+  // ── 5. SINGLE PASS through all entries ────────────────
+  // Yield to browser every 100 iterations (not every file read — that was the bug)
+  for (let i = 0; i < allEntries.length; i++) {
+    // Yield every 100 iterations so browser stays responsive
+    if (i > 0 && i % 100 === 0) {
+      await new Promise(r => setTimeout(r, 0));
+      prog(14 + Math.min(20, Math.floor(i / allEntries.length * 20)));
     }
-  }
 
-  // Read ALL .yaml/.yml files to detect Kubernetes manifests
-  for (const {p, e} of entries) {
-    if ((p.endsWith('.yaml') || p.endsWith('.yml')) && !p.includes('node_modules')) {
+    const {p, e} = allEntries[i];
+    if (skip(p)) continue;
+
+    const base = p.split('/').pop();
+
+    // Config / source file — read it
+    if (WANT.has(base)) {
+      try {
+        const txt = await e.async('string');
+        // Only store first 512KB — enough for any config file
+        C[base] = txt.slice(0, 524288);
+        reads++;
+        // For server files in subdirs, key by path too
+        if (['server.js','server.ts','app.js'].includes(base)) {
+          C[`__src__${p.replace(/\//g,'_')}`] = txt.slice(0, 10000);
+        }
+      } catch(_) {}
+      continue;
+    }
+
+    // k8s YAML — read up to 10 files only
+    if (k8sCount < 10 && (p.endsWith('.yaml') || p.endsWith('.yml'))) {
+      if (p.includes('.github/') || p.includes('.circleci/') || p.includes('node_modules')) continue;
       try {
         const txt = await e.async('string');
         if (txt.includes('apiVersion:') && txt.includes('kind:')) {
-          C[`__k8s__${p.replace(/\//g,'_')}`] = txt;
+          C['__k8s__'+k8sCount] = txt;
+          k8sCount++;
+          slog('det','☸',`k8s: <span class="txt">${base}</span>`);
         }
       } catch(_) {}
+      continue;
+    }
+
+    // .csproj / .fsproj (dotnet) — just note its existence
+    if (base.endsWith('.csproj') || base.endsWith('.fsproj')) {
+      try { C['__csproj__'] = await e.async('string'); } catch(_) {}
     }
   }
-  prog(28);
 
-  slog('src','🔬','Scanning source files for port bindings…');
-  for (const {p, e} of entries) {
-    const base = p.split('/').pop();
-    const stripped = p.replace(/^[^/]+\//,'');
-    // Match root-level AND any nested server.js/server.ts/app.js etc.
-    const isSource = SOURCES.includes(base) || SOURCES.includes(stripped) ||
-      (base === 'server.js' || base === 'server.ts' || base === 'app.js' || base === 'index.js');
-    if (isSource && !p.includes('node_modules')) {
-      try {
-        const src = await e.async('string');
-        // Key by full path so subdirectory server.js doesn't overwrite root server.js
-        C[`__src__${p.replace(/\//g,'_')}`] = src.slice(0,10000);
-      } catch(_) {}
-    }
+  slog('ok','✔',`Read <span class="txt">${reads}</span> config files${k8sCount?' + '+k8sCount+' k8s manifests':''}`);
+  prog(40);
+
+  // ── 6. Analyse ────────────────────────────────────────
+  slog('det','🧠','Analysing stack…');
+  const paths = allEntries.map(x => x.p);
+  try {
+    G = analyse(paths, C);
+  } catch(err) {
+    slog('wrn','✖','Analysis error: '+err.message);
+    G = { stack:'generic', display:'Generic App', icon:'📦', port:'8080',
+          startCmd:'./start.sh', buildCmd:'', baseImg:'debian:12-slim',
+          buildImg:'debian:12-slim', framework:'', pkgMgr:'', langVer:'',
+          langMaj:'', isMulti:false, isStatic:false, isTS:false,
+          isMonorepo:false, hasWorker:false, dbs:[], cache:[], queues:[],
+          services:[], sysDeps:[], needsAlpineWarn:false, useAlpine:true,
+          envVars:[], envVals:{}, buildArgs:[], runtimeVars:[],
+          hasCustomServer:false, customServerFile:'', isK8s:false,
+          k8sNamespace:'default', k8sAppName:'', k8sImage:'',
+          k8sReplicas:1, k8sMaxReplicas:5, k8sCpuReq:'250m',
+          k8sCpuLim:'1000m', k8sMemReq:'256Mi', k8sMemLim:'512Mi',
+          k8sConfigMapData:{}, k8sSecretKeys:[], hasNginx:false,
+          hasSupervisor:false, procfileCmd:'', procfileWorker:'',
+          javaType:'maven', healthPath:'/health', healthStart:15,
+          memLimit:'512m', cpuLimit:'0.5', needsGit:false,
+          useDistroless:false, nodeOptions:'', jvmFlags:'',
+          signals:'SIGTERM', volumes:[], insights:[], warnings:[] };
   }
-  prog(42);
+  prog(70);
 
-  const paths = entries.map(e => e.p);
-  slog('det','🧠','Running deep intelligence analysis…');
-  G = analyse(paths, C);
-  prog(72);
+  slog('ok','✔',`<span class="txt">${G.display}${G.framework?' · '+G.framework:''}</span>`);
+  if (G.pkgMgr)      slog('inf','→',`Package manager: <span class="txt">${G.pkgMgr}</span>`);
+  if (G.langVer)     slog('inf','→',`Runtime: <span class="txt">${G.langVer}</span>`);
+  if (G.portSource)  slog('src','📍',`Port <span class="txt">${G.port}</span> from <span class="txt">${G.portSource}</span>`);
+  if (G.dbs.length)  slog('inf','🗄',`Databases: <span class="txt">${G.dbs.join(', ')}</span>`);
+  if (G.isK8s)       slog('det','☸','Kubernetes manifests → k8s.yml tab generated');
+  if (G.buildArgs.length) slog('det','🔑',`${G.buildArgs.length} build-time ARGs detected`);
+  if (G.hasMigrations) slog('inf','🔄',`<span class="txt">DB migrations</span> — separate compose service added`);
+  prog(82);
 
-  slog('ok','✔',`Stack: <span class="txt">${G.display}${G.framework?' · '+G.framework:''}</span>`);
-  if (G.pkgMgr)       slog('inf','→',`Package manager: <span class="txt">${G.pkgMgr}</span>`);
-  if (G.langVer)      slog('inf','→',`Runtime: <span class="txt">${G.langVer}</span>`);
-  if (G.portSource)   slog('src','📍',`Port <span class="txt">${G.port}</span> found in <span class="txt">${G.portSource}</span>`);
-  if (G.procfileCmd)  slog('src','📄',`Procfile web: <span class="txt">${G.procfileCmd}</span>`);
-  if (G.dbs.length)   slog('inf','🗄',`Databases: <span class="txt">${G.dbs.join(', ')}</span>`);
-  if (G.needsAlpineWarn) slog('wrn','⚠',`<span class="txt">Alpine incompatibility</span> — switching to slim`);
-  if (G.hasSysDeps)   slog('wrn','📦',`Native deps: <span class="txt">${G.sysDeps.join(', ')}</span>`);
-  if (G.isK8s)        slog('det','☸',`<span class="txt">Kubernetes manifests detected</span> — generating k8s.yml tab`);
-  if (G.buildArgs.length) slog('det','🔑',`Build-time vars: <span class="txt">${G.buildArgs.join(', ')}</span> → ARG instructions`);
-  if (G.hasCustomServer)  slog('src','🖥',`Custom server detected: <span class="txt">${G.customServerFile}</span> on port <span class="txt">${G.port}</span>`);
-  prog(86);
-
-  slog('det','📝','Generating optimised files…');
-  G.dockerfile = mkDockerfile(G);
-  G.compose    = mkCompose(G);
-  G.ignore     = mkIgnore(G);
-  G.envex      = mkEnvExample(G);
-  G.makefile   = mkMakefile(G);
-  G.k8s        = mkK8s(G);
+  // ── 7. Generate files ─────────────────────────────────
+  slog('det','📝','Generating files…');
+  try {
+    G.dockerfile = mkDockerfile(G);
+    G.compose    = mkCompose(G);
+    G.ignore     = mkIgnore(G);
+    G.envex      = mkEnvExample(G);
+    G.makefile   = mkMakefile(G);
+    G.k8s        = mkK8s(G);
+  } catch(err) {
+    slog('wrn','✖','Generator error: '+err.message+' — please report this');
+    // Set safe fallbacks so UI still shows something
+    if (!G.dockerfile) G.dockerfile = '# Error generating Dockerfile — check console';
+    if (!G.compose)    G.compose    = '# Error generating docker-compose.yml';
+    if (!G.ignore)     G.ignore     = 'node_modules/\n.env\n.git/';
+    if (!G.envex)      G.envex      = '# .env.example';
+    if (!G.makefile)   G.makefile   = '# Makefile';
+    if (!G.k8s)        G.k8s        = '# k8s.yml';
+  }
   prog(100);
 
-  document.getElementById('sptitle').textContent = '✔ Analysis complete';
-  document.getElementById('spspin').style.display='none';
+  document.getElementById('sptitle').textContent = '✔ Done';
+  document.getElementById('spspin').style.display = 'none';
 
   renderCard(G);
   renderInsights(G);
@@ -437,19 +462,26 @@ function analyse(paths, C) {
     buildArgs:[],          // NEW: vars that must be ARG (REACT_APP_*, NEXT_PUBLIC_*, etc.)
     runtimeVars:[],        // NEW: vars that are runtime only
     hasCustomServer:false, // NEW: CRA/static but has a node server.js too
-    customServerFile:'',   // NEW: which file is the custom server
+    customServerFile:'',   // NEW: full relative path e.g. subdir/server.js
+    customServerDir:'',    // NEW: parent dir of custom server
     isK8s:false,           // NEW: kubernetes manifests detected
     k8sNamespace:'default',// NEW: detected k8s namespace
+    k8sAppName:'',         // NEW: extracted app name from k8s metadata
+    k8sImage:'',           // NEW: existing image from k8s deployment
     k8sReplicas:1,         // NEW: detected replicas
+    k8sMaxReplicas:5,      // NEW: detected max replicas from HPA
     k8sCpuReq:'250m', k8sCpuLim:'1000m',
     k8sMemReq:'256Mi', k8sMemLim:'512Mi',
+    k8sConfigMapData:{},   // NEW: all data from existing ConfigMap
+    k8sSecretKeys:[],      // NEW: key names from existing Secret
     hasNginx:false, hasSupervisor:false,
     procfileCmd:'', procfileWorker:'',
     hasMakefile:false, hasExistingDockerfile:false,
-    javaType:'maven', workers:[],
+    javaType:'maven', javaJarName:'*.jar', workers:[],
     healthPath:'/health', healthStart:15,
     memLimit:'512m', cpuLimit:'0.5',
     needsGit:false, needsSSH:false,
+    hasMigrations:false, migrateCmd:'',
     needsDB:false, useDistroless:false,
     nodeOptions:'', jvmFlags:'',
     ociLabels:{}, signals:'SIGTERM',
@@ -471,29 +503,108 @@ function analyse(paths, C) {
   if (hf('docker-compose.yml') || hf('docker-compose.yaml')) R.warnings.push('Existing docker-compose.yml will be replaced');
 
   // ── Sniff Node version from EXISTING Dockerfile ──────
-  // "FROM node:22.2" or "FROM node:22-alpine" → version 22
+  // Store on R so mkDockerfile can read it without needing C in scope
   const existingDF = C['Dockerfile'] || '';
+  R.existingDockerfile = existingDF;
   const dfNodeVer = (existingDF.match(/FROM\s+node:(\d+)/) || [])[1] || '';
+  const dfExposePort = (existingDF.match(/^EXPOSE\s+(\d+)/m) || [])[1] || '';
 
-  // ── Kubernetes detection ──────────────────────────────
+  // ── Kubernetes detection — full extraction ────────────
   const k8sContents = Object.entries(C)
     .filter(([k]) => k.startsWith('__k8s__'))
     .map(([,v]) => v)
-    .join('\n');
+    .join('\n---\n');
+
   if (k8sContents) {
     R.isK8s = true;
-    // Extract namespace
-    const nsMatch = k8sContents.match(/namespace:\s*(\S+)/);
-    if (nsMatch) R.k8sNamespace = nsMatch[1];
-    // Extract replicas
-    const repMatch = k8sContents.match(/replicas:\s*(\d+)/);
+
+    // Split into individual resource blocks
+    const k8sBlocks = k8sContents.split(/^---/m).map(b => b.trim()).filter(Boolean);
+
+    // Find Deployment block
+    const deployBlock = k8sBlocks.find(b => /kind:\s*Deployment/.test(b)) || '';
+    // Find ConfigMap block
+    const cmBlock = k8sBlocks.find(b => /kind:\s*ConfigMap/.test(b)) || '';
+    // Find Secret block
+    const secBlock = k8sBlocks.find(b => /kind:\s*Secret/.test(b)) || '';
+    // Find Service block
+    const svcBlock = k8sBlocks.find(b => /kind:\s*Service/.test(b)) || '';
+    // Find HPA block
+    const hpaBlock = k8sBlocks.find(b => /HorizontalPodAutoscaler/.test(b)) || '';
+
+    // B3: Namespace — from any block metadata
+    const nsMatch = k8sContents.match(/namespace:\s*([^\s#\n]+)/);
+    if (nsMatch && nsMatch[1] !== 'kube-system') R.k8sNamespace = nsMatch[1];
+
+    // B1: App name — from Deployment metadata.name (strip -deployment suffix)
+    const depNameMatch = deployBlock.match(/^\s*name:\s*([^\s\n]+)/m);
+    if (depNameMatch) {
+      R.k8sAppName = depNameMatch[1].replace(/-deployment$/, '').replace(/-deploy$/, '');
+    }
+    // Also try app label
+    if (!R.k8sAppName) {
+      const appLblMatch = deployBlock.match(/app:\s*([^\s\n]+)/);
+      if (appLblMatch) R.k8sAppName = appLblMatch[1];
+    }
+
+    // B2: Port — from containerPort
+    const portMatch = deployBlock.match(/containerPort:\s*(\d+)/);
+    if (portMatch) {
+      R.port = portMatch[1];
+      R.portSource = 'k8s containerPort';
+    }
+
+    // B7: Image — from Deployment container image
+    const imgMatch = deployBlock.match(/image:\s*([^\s\n]+)/);
+    if (imgMatch) R.k8sImage = imgMatch[1];
+
+    // B6: Resources — section-aware parsing
+    const reqBlock = deployBlock.match(/requests:\s*\n([\s\S]*?)(?=limits:|---|\z)/);
+    const limBlock = deployBlock.match(/limits:\s*\n([\s\S]*?)(?=\n\s*\n|---|\z)/);
+    if (reqBlock) {
+      const cR = reqBlock[1].match(/cpu:\s*["']?(\S+?)["']?\s*$/m);
+      const mR = reqBlock[1].match(/memory:\s*["']?(\S+?)["']?\s*$/m);
+      if (cR) R.k8sCpuReq = cR[1];
+      if (mR) R.k8sMemReq = mR[1];
+    }
+    if (limBlock) {
+      const cL = limBlock[1].match(/cpu:\s*["']?(\S+?)["']?\s*$/m);
+      const mL = limBlock[1].match(/memory:\s*["']?(\S+?)["']?\s*$/m);
+      if (cL) R.k8sCpuLim = cL[1];
+      if (mL) R.k8sMemLim = mL[1];
+    }
+
+    // Replicas
+    const repMatch = deployBlock.match(/replicas:\s*(\d+)/);
     if (repMatch) R.k8sReplicas = parseInt(repMatch[1]) || 1;
-    // Extract resource limits from existing k8s
-    const cpuLimMatch = k8sContents.match(/cpu:\s*["']?(\d+m)["']?\s*\n.*?(?=requests|limits)/s);
-    const memLimMatch = k8sContents.match(/memory:\s*["']?(\d+Mi)["']?/);
-    if (memLimMatch) { R.k8sMemLim = memLimMatch[1]; R.k8sMemReq = memLimMatch[1]; }
-    const cpuReqMatch = k8sContents.match(/cpu:\s*["']?(\d+m)["']?/);
-    if (cpuReqMatch) R.k8sCpuReq = cpuReqMatch[1];
+
+    // HPA maxReplicas
+    const maxRepMatch = hpaBlock.match(/maxReplicas:\s*(\d+)/);
+    if (maxRepMatch) R.k8sMaxReplicas = parseInt(maxRepMatch[1]);
+
+    // B4: ConfigMap data — parse all key:value pairs from data: section
+    R.k8sConfigMapData = {};
+    const cmDataBlock = cmBlock.match(/^data:\s*\n([\s\S]*?)(?=^---|\z)/m);
+    if (cmDataBlock) {
+      cmDataBlock[1].split('\n').forEach(line => {
+        const m = line.match(/^\s{2}([A-Za-z_][A-Za-z0-9_]*):\s*"?([^"#\n]*)"?\s*$/);
+        if (m) R.k8sConfigMapData[m[1]] = m[2].trim();
+      });
+    }
+
+    // B5: Secret keys — extract key names from Secret stringData or data
+    R.k8sSecretKeys = [];
+    const secDataBlock = secBlock.match(/(?:stringData|data):\s*\n([\s\S]*?)(?=^---|\z)/m);
+    if (secDataBlock) {
+      secDataBlock[1].split('\n').forEach(line => {
+        const m = line.match(/^\s{2}([A-Z_][A-Z0-9_]*):/);
+        if (m) R.k8sSecretKeys.push(m[1]);
+      });
+    }
+
+    // Service port (for svcPort reference)
+    const svcPortMatch = svcBlock.match(/port:\s*(\d+)/);
+    if (svcPortMatch && !portMatch) R.port = svcPortMatch[1];
   }
 
   // ── Procfile parsing ─────────────────────────────────
@@ -564,7 +675,9 @@ function analyse(paths, C) {
     );
     if (serverFiles.length > 0) {
       R.hasCustomServer = true;
-      R.customServerFile = serverFiles[0].split('/').pop();
+      const fullServerPath = serverFiles[0].replace(/^[^/]+\//, '');
+      R.customServerFile = fullServerPath;
+      R.customServerDir  = fullServerPath.includes('/') ? fullServerPath.replace(/\/[^/]+$/, '') : '';
     }
 
     // ── Framework detection (ordered by specificity) ──
@@ -773,12 +886,12 @@ function analyse(paths, C) {
       R.startCmd = `uvicorn ${mod} --host 0.0.0.0 --port ${R.port} --workers 4`;
     } else if (R.framework==='Django') {
       if (hasGunicorn)
-        R.startCmd = `gunicorn --bind 0.0.0.0:${R.port} --workers 4 --timeout 120 --access-logfile - project.wsgi:application`;
+        R.startCmd = `gunicorn --bind 0.0.0.0:${R.port} --workers \${GUNICORN_WORKERS:-4} --timeout 120 --access-logfile - project.wsgi:application`;
       else
         R.startCmd = `python manage.py runserver 0.0.0.0:${R.port}`;
     } else if (R.framework==='Flask') {
       if (hasGunicorn)
-        R.startCmd = `gunicorn --bind 0.0.0.0:${R.port} --workers 4 wsgi:app`;
+        R.startCmd = `gunicorn --bind 0.0.0.0:${R.port} --workers \${GUNICORN_WORKERS:-4} wsgi:app`;
       else
         R.startCmd = `flask run --host=0.0.0.0 --port=${R.port}`;
     }
@@ -843,6 +956,10 @@ function analyse(paths, C) {
     R.buildCmd = R.javaType==='gradle'
       ? './gradlew build -x test --no-daemon -q'
       : 'mvn clean package -DskipTests -q -B';
+    const artifactId = (pom.match(/<artifactId>([^<]+)<\/artifactId>/) || [])[1] || '';
+    const pomVersion = (pom.match(/<version>([^<]+)<\/version>/) || [])[1] || '';
+    R.javaJarName = artifactId && pomVersion ? `${artifactId}-${pomVersion}.jar`
+      : artifactId ? `${artifactId}*.jar` : '*.jar';
 
     // ── Framework ──
     if      (has(allJava,'spring-boot'))      { R.framework='Spring Boot'; R.healthPath='/actuator/health'; R.healthStart=60; }
@@ -1006,7 +1123,7 @@ function analyse(paths, C) {
     R.stack='dotnet'; R.display='.NET'; R.icon='🔷'; R.port='8080';
     R.pkgMgr='nuget'; R.isMulti=true; R.framework='ASP.NET Core';
 
-    const csp = Object.values(C).find(v=>v&&v.includes('TargetFramework'))||'';
+    const csp = C['__csproj__'] || Object.values(C).find(v=>v&&v.includes('TargetFramework'))||'';
     const tfm = (csp.match(/<TargetFramework>net(\d+)/)||[])[1] || '8';
     R.langMaj=tfm; R.langVer=`.NET ${tfm}`;
     R.buildImg=`mcr.microsoft.com/dotnet/sdk:${tfm}`;
@@ -1031,6 +1148,9 @@ function analyse(paths, C) {
       : 'make -j$(nproc)';
     R.startCmd='./app';
   }
+
+  // Apply EXPOSE port as last-resort fallback
+  if (!R.portSource && dfExposePort) { R.port=dfExposePort; R.portSource='existing Dockerfile EXPOSE'; }
 
   /* ═════════ ENV VARS (all stacks) ══════════════════════ */
   const envSrc = C['.env.example']||C['.env.sample']||C['.env']||'';
@@ -1125,6 +1245,13 @@ function analyse(paths, C) {
   if (R.hasCustomServer && R.framework && R.framework.includes('CRA'))
     R.insights.push({type:'warn', text:`CRA + custom server.js detected — NOT using nginx. Serving built React app via Node.js on port ${R.port}. Verify your server's mv/copy step matches the Dockerfile.`});
 
+  // DB migration detection
+  if (R.framework === 'Django')      { R.hasMigrations=true; R.migrateCmd='python manage.py migrate --noinput'; }
+  if (R.framework === 'Rails')       { R.hasMigrations=true; R.migrateCmd='bundle exec rails db:migrate'; }
+  if (R.framework === 'Laravel')     { R.hasMigrations=true; R.migrateCmd='php artisan migrate --force'; }
+  if (R.hasMigrations)
+    R.insights.push({type:'info', text:`DB migrations detected — added as separate compose service (${R.migrateCmd})`});
+
   R.needsDB = R.dbs.length > 0;
   R.hasSysDeps = R.sysDeps.length > 0;
   return R;
@@ -1214,6 +1341,64 @@ function mkDockerfile(R) {
   a(`# Generated by Captain Container`);
   a(`# Stack: ${R.langVer||R.display} | Port: ${R.port} | Multi-stage: ${R.isMulti?'yes':'no'}`);
   nl();
+
+  /* ── CRA + CUSTOM NODE SERVER (single-stage, not nginx, not multi-stage) ──── */
+  // Real pattern: npm install → ARGs → COPY → global react-scripts → build → mv build → node server.js
+  if (R.framework && R.framework.includes('CRA') && R.hasCustomServer) {
+    a(`FROM ${R.buildImg}`);
+    a('WORKDIR /usr/src/app'); nl();  // B9: standard Node WORKDIR
+    a('# Install dependencies first (layer cache)');
+    a('COPY package*.json ./');
+    a('RUN npm install');             // B10: npm install not npm ci (matches real pattern)
+    nl();
+    // B13: ARG block placed AFTER npm install but BEFORE COPY . .
+    if (R.buildArgs.length) {
+      a('# Build-time variables — baked into JS bundle at npm run build');
+      a('# Pass with: docker build --build-arg REACT_APP_KEY=value ...');
+      R.buildArgs.forEach(k => a(`ARG ${k}`));
+      nl();
+      a('# Expose ARGs as ENV so react-scripts can read them at build time');
+      R.buildArgs.forEach(k => a(`ENV ${k}=\${${k}}`));
+      nl();
+    }
+    a('COPY . .'); nl();
+    // B11: react-scripts needs global install if not in deps
+    a('RUN npm install -g react-scripts');
+    a('RUN npm run build'); nl();
+    // B12: mv build output into the server subdirectory
+    // Derive the target dir from the custom server file path
+    const serverDir = R.customServerFile
+      ? R.customServerFile.replace(/\/[^/]+$/, '').replace(/^[^/]+$/, '')  // parent dir
+      : '';
+    // Detect from existing Dockerfile CMD if available
+    const existDF = R.existingDockerfile || '';
+    const mvMatch = existDF.match(/mv\s+\.\/build\s+\.\/(\S+)/);
+    const serverSubdir = mvMatch ? mvMatch[1]
+      : (R.customServerDir || (R.customServerFile && R.customServerFile.includes('/')
+          ? R.customServerFile.replace(/\/[^/]+$/, '') : 'server'));
+    a(`RUN mv ./build ./${serverSubdir}/`); nl();
+    // Security: non-root
+    a('# Security: run as non-root user');
+    a('RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser \\');
+    a('    && chown -R appuser:appgroup /usr/src/app');
+    a('USER appuser'); nl();
+    // OCI labels
+    a('LABEL org.opencontainers.image.title="${APP_NAME:-app}" \\');
+    a('      org.opencontainers.image.version="${APP_VERSION:-1.0.0}"'); nl();
+    // Healthcheck
+    a(`HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \\`);
+    a(`  CMD wget -qO- http://localhost:${R.port}/ 2>/dev/null || exit 1`); nl();
+    a(`EXPOSE ${R.port}`); nl();
+    a('STOPSIGNAL SIGTERM'); nl();
+    // CMD: find the actual server.js from CMD in existing Dockerfile
+    const cmdMatch = existDF.match(/CMD\s+\["node",\s*"([^"]+)"\]/);
+    const serverPath = cmdMatch ? cmdMatch[1]
+      : (R.customServerFile && R.customServerFile.includes('/')
+          ? R.customServerFile
+          : `${serverSubdir}/server.js`);
+    a(`CMD ["node", "${serverPath}"]`);
+    return L.join('\n');
+  }
 
   /* ── STATIC FRONTENDS ──── */
   if (R.isStatic) {
@@ -1326,7 +1511,7 @@ function mkDockerfile(R) {
       if (R.framework==='NestJS') a('COPY --from=builder /build/dist ./dist');
       a('COPY --from=builder /build/ ./');
     } else if (R.stack==='java') {
-      a('COPY --from=builder /build/target/*.jar app.jar');
+      a(`COPY --from=builder /build/target/${R.javaJarName||'*.jar'} app.jar`);
     } else if (R.stack==='go') {
       a('COPY --from=builder /app/app /app/app');
     } else if (R.stack==='rust') {
@@ -1443,7 +1628,7 @@ function mkDockerfile(R) {
 
   const cmdParts = R.startCmd.trim().split(/\s+/);
   if (R.hasSupervisor) a('CMD ["/usr/bin/supervisord", "-c", "/etc/supervisord.conf"]');
-  else if (R.stack==='java') a(`CMD ["java",${R.jvmFlags.split(' ').map(f=>'"'+f+'"').join(',')},"-jar","app.jar"]`);
+  else if (R.stack==='java') a(`CMD ["java",${R.jvmFlags.split(' ').map(f=>'"'+f+'"').join(',')},"-jar","${R.javaJarName||'app.jar'}"]`);
   else a(`CMD ${JSON.stringify(cmdParts)}`);
 
   return L.join('\n');
@@ -1474,7 +1659,9 @@ function mkCompose(R) {
     networks: [appnet]
     deploy:
       resources:
-        limits: {memory: 512m, cpus: '1.0'}`;
+        limits:
+          memory: 512m
+          cpus: '1.0'`;
   }
   if (R.hasWorker && R.stack==='ruby' && R.services.includes('sidekiq')) {
     workerSvc = `
@@ -1503,11 +1690,16 @@ function mkCompose(R) {
       - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
     healthcheck:
       test: ["CMD-SHELL","pg_isready -U \${DB_USER:-appuser}"]
-      interval: 10s; timeout: 5s; retries: 5; start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     networks: [appnet]
     deploy:
       resources:
-        limits: {memory: 256m, cpus: '0.5'}`;
+        limits:
+          memory: 256m
+          cpus: '0.5'`;
   else if (db==='mysql') dbSvc=`
   # ── MySQL ─────────────────────────────────────────────
   db:
@@ -1521,7 +1713,9 @@ function mkCompose(R) {
     volumes: [db_data:/var/lib/mysql]
     healthcheck:
       test: ["CMD","mysqladmin","ping","-h","localhost","-u","root","-p\${DB_ROOT_PASS:-rootpass}"]
-      interval: 10s; timeout: 5s; retries: 5
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks: [appnet]`;
   else if (db==='mongodb') dbSvc=`
   # ── MongoDB ───────────────────────────────────────────
@@ -1534,7 +1728,9 @@ function mkCompose(R) {
     volumes: [db_data:/data/db]
     healthcheck:
       test: ["CMD","mongosh","--eval","db.adminCommand('ping')"]
-      interval: 10s; timeout: 5s; retries: 5
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks: [appnet]`;
 
   let redisSvc='';
@@ -1547,7 +1743,9 @@ function mkCompose(R) {
     volumes: [redis_data:/data]
     healthcheck:
       test: ["CMD","redis-cli","ping"]
-      interval: 10s; timeout: 3s; retries: 5
+      interval: 10s
+      timeout: 3s
+      retries: 5
     networks: [appnet]`;
 
   const depBlock = (R.dbs.length||useRedis)
@@ -1574,6 +1772,7 @@ services:
       target: runtime
       args:
         - APP_VERSION=\${APP_VERSION:-1.0.0}
+${R.buildArgs.length ? R.buildArgs.map(k => `        - ${k}=\${${k}}`).join('\n') : ''}
     image: \${APP_NAME:-myapp}:\${APP_VERSION:-latest}
     container_name: \${APP_NAME:-myapp}
     restart: unless-stopped
@@ -1583,7 +1782,7 @@ services:
     environment:
       - NODE_ENV=\${NODE_ENV:-production}
 ${R.dbs.length?`      - DATABASE_URL=\${DATABASE_URL}\n`:''}${useRedis?`      - REDIS_URL=redis://:${R.cache.includes('redis')?'\\${REDIS_PASS:-}@':''}redis:6379\n`:''}    healthcheck:
-      test: ["CMD","wget","-qO-","http://localhost:${R.port}${R.healthPath}"]
+      test: ["CMD-SHELL","wget -qO- http://localhost:${R.port}${R.healthPath} 2>/dev/null || curl -sf http://localhost:${R.port}${R.healthPath} 2>/dev/null || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -1598,7 +1797,18 @@ ${volLines ? '    volumes:\n' + volLines + '\n' : ''}\
       restart_policy:
         condition: on-failure
         max_attempts: 3
-${dbSvc}${redisSvc}${workerSvc}
+${R.hasMigrations && R.needsDB ? `
+  # ── DB Migrate (runs once, then exits) ──────────────
+  migrate:
+    build: { context: ., dockerfile: Dockerfile, target: runtime }
+    command: ${R.migrateCmd}
+    restart: "no"
+    env_file: [.env]
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [appnet]
+` : ''}${dbSvc}${redisSvc}${workerSvc}
 
   # ── Optional: Nginx reverse proxy ────────────────────
   # nginx:
@@ -1623,7 +1833,7 @@ ${hasVols ? `volumes:\n${R.dbs.length ? '  db_data:\n' : ''}${useRedis ? '  redi
 function mkIgnore(R) {
   const sections = [
     ['Version control',   ['.git/','.gitignore','.github/','.svn/','.hg/']],
-    ['Docker',            ['Dockerfile*','docker-compose*.yml','docker-compose*.yaml','.dockerignore']],
+    ['Docker & generated',['Dockerfile*','docker-compose*.yml','docker-compose*.yaml','.dockerignore','k8s.yml','k8s.yaml','Makefile','makefile']],
     ['Secrets',           ['.env','.env.*','!.env.example','*.pem','*.key','*.cert','secrets/']],
     ['OS / editors',      ['.DS_Store','Thumbs.db','.idea/','.vscode/','*.swp','*~','*.orig']],
     ['Docs / misc',       ['*.md','README*','LICENSE*','CHANGELOG*','docs/','*.log','logs/','tmp/','temp/']],
@@ -1686,6 +1896,8 @@ function mkEnvExample(R) {
   L.push('# ── Security ─────────────────────────────────────','SECRET_KEY=generate_a_random_string_here','JWT_SECRET=your_jwt_secret_here','JWT_EXPIRY=7d','');
   if (R.stack==='node'&&R.nodeOptions) { L.push('# ── Node.js performance ──────────────────────────',`NODE_OPTIONS=${R.nodeOptions}`,''); }
   if (R.stack==='java') L.push('# ── JVM ───────────────────────────────────────────',`JAVA_OPTS=${R.jvmFlags}`,'');
+  if (R.stack==='python' && R.framework && ['Flask','Django','FastAPI','Starlette','Sanic'].includes(R.framework))
+    L.push('# ── Gunicorn (formula: 2*CPU+1) ──────────────────','GUNICORN_WORKERS=4','');
 
   return L.join('\n');
 }
@@ -1754,43 +1966,81 @@ help:
    📄 KUBERNETES MANIFEST GENERATOR
    ═══════════════════════════════════════════════════════ */
 function mkK8s(R) {
-  const name = 'app';
+  // B1: Use extracted app name, fallback to 'app'
+  const name = R.k8sAppName || 'app';
   const ns   = R.k8sNamespace || 'default';
   const port = R.port;
-  const buildArgBlock = R.buildArgs.length
-    ? R.buildArgs.map(k => `        - name: ${k}\n          value: "${R.envVals[k]||''}"`).join('\n')
-    : '';
+  const maxRep = R.k8sMaxReplicas || Math.max(R.k8sReplicas * 3, 5);
 
-  // ConfigMap: non-secret runtime vars
-  const cmData = R.runtimeVars.length
-    ? R.runtimeVars.map(k => {
-        const v = R.envVals[k]||'';
-        const safe = /secret|password|key|token|pass|private/i.test(k) ? null : v;
-        return safe !== null ? `  ${k}: "${safe.replace(/"/g,'\\"')}"` : null;
-      }).filter(Boolean).join('\n')
-    : '  # Add your env vars here\n  ENV: production';
+  // B7: Use extracted image or generate placeholder
+  const image = R.k8sImage
+    ? R.k8sImage.replace(/:[^:]+$/, ':${APP_VERSION:-latest}')   // keep registry/name, replace tag
+    : `your-registry/${name}:\${APP_VERSION:-latest}`;
 
-  const secretKeys = R.runtimeVars.filter(k =>
-    /secret|password|key|token|pass|private/i.test(k)
-  );
+  // B4: ConfigMap data — prefer extracted k8s ConfigMap data over env file vars
+  let cmLines = [];
+  const hasK8sCM = Object.keys(R.k8sConfigMapData||{}).length > 0;
+  if (hasK8sCM) {
+    // Use the actual values from the existing ConfigMap
+    Object.entries(R.k8sConfigMapData).forEach(([k, v]) => {
+      // Separate secrets from config
+      const isSecret = /secret_key|encrypt_key|password|private/i.test(k);
+      if (!isSecret) cmLines.push(`  ${k}: "${v}"`);
+    });
+  } else {
+    // Fall back to env file vars (non-secret)
+    R.runtimeVars.forEach(k => {
+      const v = R.envVals[k]||'';
+      const isSecret = /secret|password|key|token|pass|private/i.test(k);
+      if (!isSecret) cmLines.push(`  ${k}: "${v.replace(/"/g,'\\"')}"`);
+    });
+  }
+  const cmData = cmLines.length
+    ? cmLines.join('\n')
+    : '  # Add your non-secret env vars here\n  NODE_ENV: "production"';
+
+  // B5: Secret keys — prefer extracted from existing k8s Secret
+  let secretKeys = [];
+  if ((R.k8sSecretKeys||[]).length > 0) {
+    secretKeys = R.k8sSecretKeys;
+  } else {
+    // Fall back to detecting from env vars
+    secretKeys = R.runtimeVars.filter(k =>
+      /secret|password|key|token|pass|private/i.test(k)
+    );
+    // Also include build-time secret-looking vars
+    R.buildArgs.forEach(k => {
+      if (/secret|encrypt|decrypt/i.test(k) && !secretKeys.includes(k)) secretKeys.push(k);
+    });
+  }
+  // Also check ConfigMap for secret-looking values that should be in Secret
+  if (hasK8sCM) {
+    Object.keys(R.k8sConfigMapData).forEach(k => {
+      if (/secret_key|encrypt_key|decrypt/i.test(k) && !secretKeys.includes(k)) secretKeys.push(k);
+    });
+  }
+
+  const secretBlock = secretKeys.length
+    ? secretKeys.map(k => `  ${k}: "CHANGE_ME"`).join('\n')
+    : '  SECRET_KEY: "CHANGE_ME"';
 
   return `# kubernetes manifests — ${R.display}${R.framework?' · '+R.framework:''}
 # Generated by Captain Container
 #
-# Apply:     kubectl apply -f k8s.yml
-# Status:    kubectl get pods -n ${ns}
-# Logs:      kubectl logs -f -l app=${name} -n ${ns}
-# Shell:     kubectl exec -it deploy/${name}-deployment -n ${ns} -- sh
+# Apply:  kubectl apply -f k8s.yml
+# Status: kubectl get pods -n ${ns}
+# Logs:   kubectl logs -f -l app=${name} -n ${ns}
+# Shell:  kubectl exec -it deploy/${name}-deployment -n ${ns} -- sh
 
 ---
-# ── Namespace ─────────────────────────────────────────
+# ── Namespace ────────────────────────────────────────
 apiVersion: v1
 kind: Namespace
 metadata:
   name: ${ns}
 
 ---
-# ── ConfigMap (non-secret env vars) ───────────────────
+# ── ConfigMap (non-secret env vars) ─────────────────
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -1800,8 +2050,8 @@ data:
 ${cmData}
 
 ---
-# ── Secret (sensitive vars — base64 encode values!) ───
-# Run: echo -n "your-value" | base64
+# ── Secret (sensitive vars) ──────────────────────────
+# Encode values: echo -n "your-value" | base64
 apiVersion: v1
 kind: Secret
 metadata:
@@ -1809,12 +2059,10 @@ metadata:
   namespace: ${ns}
 type: Opaque
 stringData:
-${secretKeys.length
-  ? secretKeys.map(k => `  ${k}: "CHANGE_ME_base64_encoded"`).join('\n')
-  : '  SECRET_KEY: "CHANGE_ME"'}
+${secretBlock}
 
 ---
-# ── Deployment ────────────────────────────────────────
+# ── Deployment ───────────────────────────────────────
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -1822,7 +2070,6 @@ metadata:
   namespace: ${ns}
   labels:
     app: ${name}
-    version: \${APP_VERSION:-v1}
 spec:
   replicas: ${R.k8sReplicas}
   selector:
@@ -1835,7 +2082,8 @@ spec:
     spec:
       containers:
       - name: ${name}
-        image: your-registry/${name}:\${APP_VERSION:-latest}
+        image: ${image}
+        imagePullPolicy: Always
         ports:
         - containerPort: ${port}
           protocol: TCP
@@ -1869,7 +2117,7 @@ spec:
       terminationGracePeriodSeconds: 30
 
 ---
-# ── Service (ClusterIP — internal access only) ────────
+# ── Service (ClusterIP) ──────────────────────────────
 apiVersion: v1
 kind: Service
 metadata:
@@ -1885,7 +2133,35 @@ spec:
   type: ClusterIP
 
 ---
-# ── HorizontalPodAutoscaler ───────────────────────────
+# ── Ingress ──────────────────────────────────────────
+# Replace your-domain.com with your actual domain
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: \${name}-ingress
+  namespace: \${ns}
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    # cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: your-domain.com
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: \${name}-service
+            port:
+              number: \${port}
+  # tls:
+  # - hosts: [your-domain.com]
+  #   secretName: \${name}-tls
+
+---
+# ── HorizontalPodAutoscaler ──────────────────────────
 apiVersion: autoscaling/v2
 kind: HorizontalPodAutoscaler
 metadata:
@@ -1897,7 +2173,7 @@ spec:
     kind: Deployment
     name: ${name}-deployment
   minReplicas: ${R.k8sReplicas}
-  maxReplicas: ${Math.max(R.k8sReplicas * 3, 5)}
+  maxReplicas: ${maxRep}
   metrics:
   - type: Resource
     resource:
@@ -1913,11 +2189,12 @@ spec:
         averageUtilization: 75
 ${R.dbs.length ? `
 ---
-# ── Note: Database ────────────────────────────────────
-# Database (${R.dbs.join(', ')}) detected.
-# For production, use a managed service (RDS, CloudSQL, Atlas)
-# OR deploy a StatefulSet with a PersistentVolumeClaim.
-# Never run a database as a regular Deployment (no persistent storage).
+# ── Database note ────────────────────────────────────
+# Database (${R.dbs.join(', ')}) detected. For production use:
+#   PostgreSQL → RDS / CloudSQL / CrunchyData Operator
+#   MongoDB    → Atlas / Percona Operator
+#   MySQL      → RDS / PlanetScale
+# Never run a DB as a plain Deployment (no persistent storage guarantee).
 ` : ''}`;
 }
 
@@ -1966,7 +2243,11 @@ function renderCard(R) {
   st('VOLUMES', R.volumes.length||'0', R.volumes.length?'b':'');
   st('BUILD ARGS', R.buildArgs.length||'0', R.buildArgs.length?'p':'');
   st('K8S', R.isK8s?`yes (${R.k8sNamespace})`:'no', R.isK8s?'b':'');
-  if (R.isK8s) st('K8S REPLICAS', `${R.k8sReplicas} → ${Math.max(R.k8sReplicas*3,5)}`, 'a');
+  if (R.isK8s) st('K8S APP NAME', R.k8sAppName||'app', 'a');
+  if (R.isK8s) st('K8S REPLICAS', `${R.k8sReplicas} → ${R.k8sMaxReplicas||Math.max(R.k8sReplicas*3,5)}`, 'a');
+  if (R.isK8s) st('K8S IMAGE', R.k8sImage||'(not detected)', R.k8sImage?'g':'');
+  if (R.isK8s) st('CM ENTRIES', Object.keys(R.k8sConfigMapData||{}).length||'0', 'b');
+  if (R.isK8s) st('SECRET KEYS', (R.k8sSecretKeys||[]).length||'0', 'p');
 }
 
 function renderInsights(R) {
